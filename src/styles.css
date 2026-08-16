@@ -265,13 +265,18 @@ button {
   border-bottom: 1px solid var(--border);
   z-index: 20;
   transition: transform 0.2s ease;
+  position: absolute;
+  left: 0;
+  right: 0;
 }
 
 .reader-topbar {
+  top: 0;
   height: 48px;
 }
 
 .reader-bottombar {
+  bottom: 0;
   height: 58px;
   border-bottom: none;
   border-top: 1px solid var(--border);
