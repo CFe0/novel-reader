@@ -6,6 +6,8 @@ const THEMES: Array<{ id: ThemeName; name: string }> = [
   { id: 'sepia', name: '米黄' },
   { id: 'green', name: '护眼绿' },
   { id: 'dark', name: '夜间' },
+  { id: 'lightGreen', name: '浅绿' },
+  { id: 'sage', name: '豆绿' },
 ];
 
 const FONTS = [
@@ -15,6 +17,7 @@ const FONTS = [
   { name: '楷体', value: "'KaiTi', 'Kaiti SC', serif" },
   { name: '等线', value: "'DengXian', sans-serif" },
   { name: '思源宋体', value: "'Noto Serif SC', 'Source Han Serif SC', serif" },
+  { name: '思源黑体 CN', value: "'Source Han Sans CN', 'Noto Sans CJK SC', sans-serif" },
 ];
 
 interface Props {

@@ -7,18 +7,22 @@ import { fetchOnlineChapter } from '../lib/fileOpen';
 import ChapterSidebar from './ChapterSidebar';
 import SettingsDrawer from './SettingsDrawer';
 
-const THEME_ORDER: ThemeName[] = ['light', 'sepia', 'green', 'dark'];
+const THEME_ORDER: ThemeName[] = ['light', 'sepia', 'green', 'dark', 'lightGreen', 'sage'];
 const THEME_NAMES: Record<ThemeName, string> = {
   light: '日间',
   sepia: '米黄',
   green: '护眼绿',
   dark: '夜间',
+  lightGreen: '浅绿',
+  sage: '豆绿',
 };
 const SWATCH_COLORS: Record<ThemeName, string> = {
   light: '#ffffff',
   sepia: '#f6f0e3',
   green: '#e9f1e5',
   dark: '#161719',
+  lightGreen: '#E6F4DF',
+  sage: '#DDE8D2',
 };
 const AUTO_LOAD_MARGIN = 600;
 // 滚动模式下，当前章节之前最多保留的章节数；更早的章节会从页面卸载以节省内存

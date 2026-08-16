@@ -48,7 +48,7 @@ export interface Chapter {
   end: number;   // 下一章字节偏移（不含）
 }
 
-export type ThemeName = 'light' | 'sepia' | 'green' | 'dark';
+export type ThemeName = 'light' | 'sepia' | 'green' | 'dark' | 'lightGreen' | 'sage';
 
 export type ReadingMode = 'chapter' | 'scroll';
 
