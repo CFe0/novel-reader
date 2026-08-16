@@ -119,7 +119,7 @@ export default function App() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const file = new File([await res.blob()], ob.fileName, { lastModified: 0 });
         await openTxt(file, null, undefined, {
-          id: onlineBookId(ob.fileName, file.size),
+          id: onlineBookId(ob.fileName, ob.size),
           source: 'online',
           url,
         });
