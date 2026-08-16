@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { BookRecord, Chapter, EncodingLabel, ReaderSettings, ThemeName } from '../types';
 import { decodeChapter, type Sliceable } from '../lib/chapters';
 import { getProgress, saveProgress } from '../lib/storage';
@@ -50,7 +51,8 @@ export default function Reader({
   const [texts, setTexts] = useState<Record<number, string>>({});
   const [activeIndex, setActiveIndex] = useState(0);
   const [percent, setPercent] = useState(0);
-  const [barsVisible, setBarsVisible] = useState(true);
+  // PC 端默认显示工具栏；手机端默认沉浸式（仅正文），点击屏幕中央唤出
+  const [barsVisible, setBarsVisible] = useState<boolean>(() => window.innerWidth > 768);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themePopoverOpen, setThemePopoverOpen] = useState(false);
@@ -253,6 +255,14 @@ export default function Reader({
     appendNext();
   }, [book.id, appendNext, settings.readingMode]);
 
+  // 手机端：点击正文区域（非按钮/控件）切换工具栏显示
+  const handleContentTap = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, select, .reader-topbar, .reader-bottombar, .mobile-bar')) return;
+    setBarsVisible((v) => !v);
+  };
+
   // 退出/刷新前兜底保存
   useEffect(() => {
     const flush = () => {
@@ -398,7 +408,7 @@ export default function Reader({
         </div>
       </header>
 
-      <div className="reader-scroll" ref={scrollRef} tabIndex={0} onScroll={handleScroll}>
+      <div className="reader-scroll" ref={scrollRef} tabIndex={0} onScroll={handleScroll} onClick={handleContentTap}>
         <div
           className="reader-content"
           style={{

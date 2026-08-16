@@ -667,6 +667,10 @@ button {
   display: none;
 }
 
+.reader.bars-hidden .mobile-bar {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .mobile-bar {
     display: flex;
@@ -692,7 +696,11 @@ button {
   }
 
   .reader-content {
-    padding: 24px 16px 110px;
+    max-width: 100% !important;
+    padding: 20px 20px 130px;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .chapter-title {
