@@ -672,12 +672,27 @@ button {
 }
 
 @media (max-width: 768px) {
+  .reader-topbar {
+    min-height: 56px;
+    height: auto;
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: 6px;
+  }
+
+  .reader-topbar .btn {
+    min-height: 40px;
+  }
+
+  .topbar-tools {
+    display: none;
+  }
+
   .mobile-bar {
     display: flex;
     position: fixed;
     left: 50%;
     transform: translateX(-50%);
-    bottom: 10px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
     z-index: 28;
     gap: 8px;
     padding: 8px 12px;

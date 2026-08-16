@@ -10,6 +10,7 @@ interface Props {
   onImport: () => void;
   onOpen: (book: BookRecord) => void;
   onOpenOnline: (book: OnlineBook) => void;
+  onRefreshOnlineBooks: () => Promise<void>;
   onRemove: (book: BookRecord) => void;
   onToggleFavorite: (book: BookRecord) => void;
 }
@@ -81,10 +82,13 @@ export default function Bookshelf({
   onImport,
   onOpen,
   onOpenOnline,
+  onRefreshOnlineBooks,
   onRemove,
   onToggleFavorite,
 }: Props) {
   const [progressMap, setProgressMap] = useState<Record<string, Progress>>({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [updated, setUpdated] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -102,6 +106,15 @@ export default function Bookshelf({
   const favorites = books.filter((b) => b.isFavorite);
   const recent = books.slice(0, 8);
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setUpdated(false);
+    await onRefreshOnlineBooks();
+    setRefreshing(false);
+    setUpdated(true);
+    window.setTimeout(() => setUpdated(false), 2000);
+  };
+
   return (
     <div className="shelf">
       <header className="shelf-header">
@@ -114,33 +127,40 @@ export default function Bookshelf({
         </button>
       </header>
 
-      {onlineBooks.length > 0 && (
-        <>
-          <div className="section-title">在线书库（{onlineBooks.length}）· 任意设备联网即读</div>
-          {onlineBooks.map((b) => {
-            const progress = progressMap[onlineBookId(b.fileName, b.size)];
-            return (
-              <div className="book-card" key={b.fileName}>
-                <div className="book-main" onClick={() => onOpenOnline(b)}>
-                  <div className="book-name">{b.title}</div>
-                  <div className="book-meta">
-                    在线 · {formatSize(b.size)}
-                    {progress ? ` · 已读至第 ${progress.chapterIndex + 1} 章` : ' · 点击在线阅读'}
-                  </div>
+      <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>在线书库（{onlineBooks.length}）· 任意设备联网即读</span>
+        <button className="btn" onClick={() => void handleRefresh()} disabled={refreshing}>
+          {refreshing ? '更新中…' : updated ? '已更新' : '更新在线书库'}
+        </button>
+      </div>
+      {onlineBooks.length > 0 ? (
+        onlineBooks.map((b) => {
+          const progress = progressMap[onlineBookId(b.fileName, b.size)];
+          return (
+            <div className="book-card" key={b.fileName}>
+              <div className="book-main" onClick={() => onOpenOnline(b)}>
+                <div className="book-name">{b.title}</div>
+                <div className="book-meta">
+                  在线 · {formatSize(b.size)}
+                  {progress ? ` · 已读至第 ${progress.chapterIndex + 1} 章` : ' · 点击在线阅读'}
                 </div>
-                <button className="btn primary" onClick={() => onOpenOnline(b)}>
-                  阅读
-                </button>
               </div>
-            );
-          })}
-        </>
+              <button className="btn primary" onClick={() => onOpenOnline(b)}>
+                阅读
+              </button>
+            </div>
+          );
+        })
+      ) : (
+        <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>
+          暂无在线书籍，点击“更新在线书库”获取仓库中的最新书单。
+        </div>
       )}
 
-      {books.length === 0 && onlineBooks.length === 0 ? (
+      {books.length === 0 ? (
         <div className="empty-state">
           <div style={{ fontSize: 40 }}>📖</div>
-          <p>书架和在线书库都是空的</p>
+          <p>书架还是空的</p>
           <p style={{ fontSize: 13 }}>点击上方按钮选择 TXT 小说，或直接把文件拖进页面</p>
           <button className="btn primary" onClick={onImport}>
             打开 TXT 文件

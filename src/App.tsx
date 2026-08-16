@@ -56,21 +56,21 @@ export default function App() {
     };
   }, []);
 
-  // 读取仓库中的在线书库（books/index.json，构建时自动生成）
-  useEffect(() => {
-    let alive = true;
-    fetch('books/index.json')
-      .then((r) => (r.ok ? r.json() : { books: [] }))
-      .then((data: { books?: OnlineBook[] }) => {
-        if (alive) setOnlineBooks(data.books ?? []);
-      })
-      .catch(() => {
-        if (alive) setOnlineBooks([]);
-      });
-    return () => {
-      alive = false;
-    };
+  // 读取/刷新仓库中的在线书库（books/index.json，构建时自动生成；带时间戳避免缓存）
+  const refreshOnlineBooks = useCallback(async () => {
+    try {
+      const res = await fetch(`books/index.json?t=${Date.now()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { books?: OnlineBook[] };
+      setOnlineBooks(data.books ?? []);
+    } catch {
+      // 网络异常时保留现有列表
+    }
   }, []);
+
+  useEffect(() => {
+    if (view.kind === 'shelf') void refreshOnlineBooks();
+  }, [view.kind, refreshOnlineBooks]);
 
   const openTxt = useCallback(
     async (
@@ -285,6 +285,7 @@ export default function App() {
           onImport={() => void onImportClick()}
           onOpen={(b) => void reopenBook(b)}
           onOpenOnline={(b) => void openOnlineBook(b)}
+          onRefreshOnlineBooks={() => refreshOnlineBooks()}
           onRemove={(b) => void removeBook(b)}
           onToggleFavorite={(b) => void toggleFavorite(b)}
         />

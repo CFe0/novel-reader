@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react';
 import type { BookRecord, Chapter, EncodingLabel, ReaderSettings, ThemeName } from '../types';
 import { decodeChapter, type Sliceable } from '../lib/chapters';
 import { getProgress, saveProgress } from '../lib/storage';
@@ -72,6 +72,7 @@ export default function Reader({
   const appendingRef = useRef(false);
   const prevModeRef = useRef(settings.readingMode);
   const positionedRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   activeIndexRef.current = activeIndex;
   trimStartRef.current = trimStart;
@@ -259,9 +260,28 @@ export default function Reader({
     appendNext();
   }, [book.id, appendNext, settings.readingMode]);
 
-  // 手机端：点击正文区域（非按钮/控件）切换工具栏显示
+  const isMobileView = () => window.matchMedia('(max-width: 768px)').matches;
+
+  // 点击正文区域（非按钮/控件）切换工具栏显示（桌面端用点击，手机端用手势）
   const handleContentTap = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    if (isMobileView()) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, select, .reader-topbar, .reader-bottombar, .mobile-bar')) return;
+    setBarsVisible((v) => !v);
+  };
+
+  const handleTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  };
+
+  const handleTouchEnd = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (!isMobileView()) return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    if (Math.abs(t.clientX - start.x) > 10 || Math.abs(t.clientY - start.y) > 10) return;
     const target = e.target as HTMLElement;
     if (target.closest('button, a, input, select, .reader-topbar, .reader-bottombar, .mobile-bar')) return;
     setBarsVisible((v) => !v);
@@ -384,7 +404,7 @@ export default function Reader({
     <div
       className={`reader${barsVisible ? '' : ' bars-hidden'}`}
       onMouseMove={() => {
-        if (!barsVisible) setBarsVisible(true);
+        if (!isMobileView() && !barsVisible) setBarsVisible(true);
       }}
     >
       <header className="reader-topbar">
@@ -412,7 +432,15 @@ export default function Reader({
         </div>
       </header>
 
-      <div className="reader-scroll" ref={scrollRef} tabIndex={0} onScroll={handleScroll} onClick={handleContentTap}>
+      <div
+        className="reader-scroll"
+        ref={scrollRef}
+        tabIndex={0}
+        onScroll={handleScroll}
+        onClick={handleContentTap}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <div
           className="reader-content"
           style={{
