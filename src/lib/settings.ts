@@ -1,7 +1,7 @@
 import type { ReaderSettings } from '../types';
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
-  fontFamily: "'SimSun', 'Songti SC', serif",
+  fontFamily: "'Microsoft YaHei', sans-serif",
   fontSize: 24,
   lineHeight: 1.9,
   paragraphGap: 0.8,
@@ -12,7 +12,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
 };
 
 const KEY = 'txt-reader-settings';
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 
 export function loadSettings(): ReaderSettings {
   try {
