@@ -402,7 +402,9 @@ export default function Reader({
 
   return (
     <div
-      className={`reader${barsVisible ? '' : ' bars-hidden'}`}
+      className={`reader${barsVisible ? '' : ' bars-hidden'}${settingsOpen ? ' sheet-open-settings' : ''}${
+        sidebarOpen ? ' sheet-open-dir' : ''
+      }`}
       onMouseMove={() => {
         if (!isMobileView() && !barsVisible) setBarsVisible(true);
       }}
@@ -527,10 +529,22 @@ export default function Reader({
             上一章
           </button>
         )}
-        <button className="btn" onClick={() => setSidebarOpen(true)}>
+        <button
+          className="btn"
+          onClick={() => {
+            setSettingsOpen(false);
+            setSidebarOpen((o) => !o);
+          }}
+        >
           目录
         </button>
-        <button className="btn" onClick={() => setSettingsOpen(true)}>
+        <button
+          className="btn"
+          onClick={() => {
+            setSidebarOpen(false);
+            setSettingsOpen((o) => !o);
+          }}
+        >
           设置
         </button>
         <button className="btn" onClick={cycleTheme}>
