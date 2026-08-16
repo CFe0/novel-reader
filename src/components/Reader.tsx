@@ -58,7 +58,6 @@ export default function Reader({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const blockRefs = useRef(new Map<number, HTMLElement>());
-  const loadingRef = useRef(new Set<number>());
   const activeIndexRef = useRef(0);
   const trimStartRef = useRef(0);
   const rangeEndRef = useRef(0);
@@ -105,14 +104,15 @@ export default function Reader({
     (async () => {
       for (let i = trimStart; i <= rangeEnd; i++) {
         if (cancelled) return;
-        if (texts[i] !== undefined || loadingRef.current.has(i)) continue;
-        loadingRef.current.add(i);
+        if (texts[i] !== undefined) continue;
         try {
           const t = await decodeChapter(file, chapters[i], encoding);
           if (cancelled) return;
           setTexts((prev) => (prev[i] === t ? prev : { ...prev, [i]: t }));
-        } finally {
-          loadingRef.current.delete(i);
+        } catch (err) {
+          console.warn('章节解码失败', i, err);
+          if (cancelled) return;
+          setTexts((prev) => ({ ...prev, [i]: '' }));
         }
       }
     })();
