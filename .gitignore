@@ -2,5 +2,6 @@ node_modules/
 dist/
 .tmp/
 *.local
+books/*.txt
 .DS_Store
 Thumbs.db
