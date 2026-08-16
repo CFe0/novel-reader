@@ -3,6 +3,7 @@ import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { BookRecord, Chapter, EncodingLabel, ReaderSettings, ThemeName } from '../types';
 import { decodeChapter, type Sliceable } from '../lib/chapters';
 import { getProgress, saveProgress } from '../lib/storage';
+import { fetchOnlineChapter } from '../lib/fileOpen';
 import ChapterSidebar from './ChapterSidebar';
 import SettingsDrawer from './SettingsDrawer';
 
@@ -108,7 +109,10 @@ export default function Reader({
         if (cancelled) return;
         if (texts[i] !== undefined) continue;
         try {
-          const t = await decodeChapter(file, chapters[i], encoding);
+          const t =
+            book.source === 'online' && book.chaptersUrl
+              ? await fetchOnlineChapter(book.chaptersUrl, i)
+              : await decodeChapter(file, chapters[i], encoding);
           if (cancelled) return;
           setTexts((prev) => (prev[i] === t ? prev : { ...prev, [i]: t }));
         } catch (err) {
@@ -121,7 +125,7 @@ export default function Reader({
     return () => {
       cancelled = true;
     };
-  }, [trimStart, rangeEnd, file, chapters, encoding, texts]);
+  }, [trimStart, rangeEnd, file, chapters, encoding, texts, book.source, book.chaptersUrl]);
 
   // 章节被卸载后，同步丢弃其文本，释放内存
   useEffect(() => {

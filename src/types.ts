@@ -18,6 +18,7 @@ export interface BookRecord {
   chapterCount: number | null;
   source: 'local' | 'online';
   url?: string;
+  chaptersUrl?: string;
 }
 
 export interface OnlineBook {

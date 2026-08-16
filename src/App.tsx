@@ -141,6 +141,7 @@ export default function App() {
           chapterCount: idx.chapters.length,
           source: 'online',
           url,
+          chaptersUrl: `books/${encodeURIComponent(ob.title)}/chapters/`,
         };
         setView({ kind: 'reader', book: record, file: source, chapters: idx.chapters, encoding: idx.encoding });
         setBusy(null);

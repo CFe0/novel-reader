@@ -51,14 +51,45 @@ export class RemoteBookFile implements Sliceable {
 
   async slice(start: number, end: number): Promise<Blob> {
     if (this.cache) return this.cache.slice(start, end);
-    const res = await fetch(this.url, {
-      headers: { Range: `bytes=${start}-${Math.max(start, end - 1)}` },
-    });
-    if (res.status === 206) return await res.blob();
-    const full = await res.blob();
-    this.cache = full;
-    return full.slice(start, end);
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const res = await fetch(this.url, {
+        headers: { Range: `bytes=${start}-${Math.max(start, end - 1)}` },
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (res.status === 206) return await res.blob();
+      const full = await res.blob();
+      this.cache = full;
+      return full.slice(start, end);
+    } finally {
+      window.clearTimeout(timer);
+    }
   }
+}
+
+/**
+ * 在线书籍按章节文件加载（普通 GET + 超时 + 一次重试）。
+ * 章节文件在构建时生成：books/<书名>/chapters/00000.txt 等。
+ */
+export async function fetchOnlineChapter(chaptersUrl: string, index: number): Promise<string> {
+  const url = `${chaptersUrl}${String(index).padStart(5, '0')}.txt`;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.text();
+    } catch (err) {
+      lastError = err;
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('章节加载失败');
 }
 
 export async function saveHandle(id: string, handle: FileSystemFileHandle | null): Promise<void> {

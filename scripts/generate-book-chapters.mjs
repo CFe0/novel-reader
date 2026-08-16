@@ -81,5 +81,14 @@ for (const f of files) {
   mkdirSync(dir, { recursive: true });
   const payload = { fileName: f, size: buf.length, encoding, chapters };
   writeFileSync(join(dir, 'chapters.json'), JSON.stringify(payload, null, 2) + '\n');
-  console.log(`已生成章节索引：${title}（${chapters.length} 章，编码 ${encoding}，${(buf.length / 1048576).toFixed(1)} MB）`);
+  const chapterDir = join(dir, 'chapters');
+  mkdirSync(chapterDir, { recursive: true });
+  const decoder = new TextDecoder(encoding, { fatal: false });
+  for (const c of chapters) {
+    const text = decoder.decode(buf.subarray(c.start, c.end));
+    writeFileSync(join(chapterDir, String(c.index).padStart(5, '0') + '.txt'), text);
+  }
+  console.log(
+    `已生成章节索引与章节文件：${title}（${chapters.length} 章，编码 ${encoding}，${(buf.length / 1048576).toFixed(1)} MB）`,
+  );
 }
