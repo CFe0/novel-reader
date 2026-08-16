@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 import Bookshelf from './components/Bookshelf';
 import Reader from './components/Reader';
-import type { BookRecord, Chapter, EncodingLabel, ReaderSettings } from './types';
+import type { BookRecord, Chapter, EncodingLabel, OnlineBook, ReaderSettings } from './types';
 import { detectEncoding } from './lib/encoding';
 import { scanChapters } from './lib/chapters';
 import { idbAll, idbDelete, idbGet, idbPut } from './lib/storage';
 import {
   bookIdOf,
   getSavedHandle,
+  onlineBookId,
   openSavedFile,
   pickTxtWithPicker,
   saveHandle,
@@ -22,6 +23,7 @@ type View =
 
 export default function App() {
   const [books, setBooks] = useState<BookRecord[]>([]);
+  const [onlineBooks, setOnlineBooks] = useState<OnlineBook[]>([]);
   const [settings, setSettings] = useState<ReaderSettings>(() => loadSettings());
   const [view, setView] = useState<View>({ kind: 'shelf' });
   const [busy, setBusy] = useState<string | null>(null);
@@ -45,8 +47,30 @@ export default function App() {
     };
   }, []);
 
-  const openTxt = useCallback(async (file: File, handle: FileSystemFileHandle | null, encoding?: EncodingLabel) => {
-    const id = bookIdOf(file);
+  // 读取仓库中的在线书库（books/index.json，构建时自动生成）
+  useEffect(() => {
+    let alive = true;
+    fetch('books/index.json')
+      .then((r) => (r.ok ? r.json() : { books: [] }))
+      .then((data: { books?: OnlineBook[] }) => {
+        if (alive) setOnlineBooks(data.books ?? []);
+      })
+      .catch(() => {
+        if (alive) setOnlineBooks([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const openTxt = useCallback(
+    async (
+      file: File,
+      handle: FileSystemFileHandle | null,
+      encoding?: EncodingLabel,
+      opts?: { id?: string; source?: 'local' | 'online'; url?: string },
+    ) => {
+      const id = opts?.id ?? bookIdOf(file);
     let enc = encoding;
     if (!enc) {
       setBusy('正在识别编码…');
@@ -70,18 +94,64 @@ export default function App() {
       isFavorite: old?.isFavorite ?? false,
       encoding: enc,
       chapterCount: chapters.length,
+      source: opts?.source ?? 'local',
+      ...(opts?.url ? { url: opts.url } : {}),
     };
-    await idbPut('books', record);
-    await saveHandle(id, handle);
-    setBooks((prev) =>
-      [record, ...prev.filter((b) => b.id !== id)].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt),
-    );
+    if (opts?.source !== 'online') {
+      await idbPut('books', record);
+      await saveHandle(id, handle);
+      setBooks((prev) =>
+        [record, ...prev.filter((b) => b.id !== id)].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt),
+      );
+    }
     setView({ kind: 'reader', book: record, file, chapters, encoding: enc });
     setBusy(null);
-  }, []);
+    },
+    [],
+  );
+
+  const openOnlineBook = useCallback(
+    async (ob: OnlineBook) => {
+      const url = `books/${encodeURIComponent(ob.fileName)}`;
+      setBusy('正在从网络加载书籍…');
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const file = new File([await res.blob()], ob.fileName, { lastModified: 0 });
+        await openTxt(file, null, undefined, {
+          id: onlineBookId(ob.fileName, file.size),
+          source: 'online',
+          url,
+        });
+      } catch (err) {
+        console.warn('在线书籍加载失败', err);
+        setBusy(null);
+        alert('在线书籍加载失败，请检查网络后重试。');
+      }
+    },
+    [openTxt],
+  );
 
   const reopenBook = useCallback(
     async (book: BookRecord) => {
+      if (book.source === 'online' && book.url) {
+        setBusy('正在从网络加载书籍…');
+        try {
+          const res = await fetch(book.url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const file = new File([await res.blob()], book.fileName, { lastModified: 0 });
+          await openTxt(file, null, book.encoding ?? undefined, {
+            id: book.id,
+            source: 'online',
+            url: book.url,
+          });
+        } catch (err) {
+          console.warn('在线书籍重新加载失败', err);
+          setBusy(null);
+          alert('在线书籍加载失败，请检查网络后重试。');
+        }
+        return;
+      }
       setBusy('正在打开…');
       const file = await openSavedFile(book.id);
       if (!file) {
@@ -181,8 +251,10 @@ export default function App() {
       {view.kind === 'shelf' ? (
         <Bookshelf
           books={books}
+          onlineBooks={onlineBooks}
           onImport={() => void onImportClick()}
           onOpen={(b) => void reopenBook(b)}
+          onOpenOnline={(b) => void openOnlineBook(b)}
           onRemove={(b) => void removeBook(b)}
           onToggleFavorite={(b) => void toggleFavorite(b)}
         />

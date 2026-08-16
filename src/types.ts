@@ -16,6 +16,14 @@ export interface BookRecord {
   isFavorite: boolean;
   encoding: EncodingLabel | null;
   chapterCount: number | null;
+  source: 'local' | 'online';
+  url?: string;
+}
+
+export interface OnlineBook {
+  title: string;
+  fileName: string;
+  size: number;
 }
 
 export interface Progress {

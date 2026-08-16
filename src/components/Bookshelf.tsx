@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { BookRecord, Progress } from '../types';
+import type { BookRecord, OnlineBook, Progress } from '../types';
 import { idbAll } from '../lib/storage';
 import { ENCODING_OPTIONS } from '../lib/encoding';
+import { onlineBookId } from '../lib/fileOpen';
 
 interface Props {
   books: BookRecord[];
+  onlineBooks: OnlineBook[];
   onImport: () => void;
   onOpen: (book: BookRecord) => void;
+  onOpenOnline: (book: OnlineBook) => void;
   onRemove: (book: BookRecord) => void;
   onToggleFavorite: (book: BookRecord) => void;
 }
@@ -72,7 +75,15 @@ function BookCard({ book, progress, onOpen, onRemove, onToggleFavorite }: CardPr
   );
 }
 
-export default function Bookshelf({ books, onImport, onOpen, onRemove, onToggleFavorite }: Props) {
+export default function Bookshelf({
+  books,
+  onlineBooks,
+  onImport,
+  onOpen,
+  onOpenOnline,
+  onRemove,
+  onToggleFavorite,
+}: Props) {
   const [progressMap, setProgressMap] = useState<Record<string, Progress>>({});
 
   useEffect(() => {
@@ -103,10 +114,33 @@ export default function Bookshelf({ books, onImport, onOpen, onRemove, onToggleF
         </button>
       </header>
 
-      {books.length === 0 ? (
+      {onlineBooks.length > 0 && (
+        <>
+          <div className="section-title">在线书库（{onlineBooks.length}）· 任意设备联网即读</div>
+          {onlineBooks.map((b) => {
+            const progress = progressMap[onlineBookId(b.fileName, b.size)];
+            return (
+              <div className="book-card" key={b.fileName}>
+                <div className="book-main" onClick={() => onOpenOnline(b)}>
+                  <div className="book-name">{b.title}</div>
+                  <div className="book-meta">
+                    在线 · {formatSize(b.size)}
+                    {progress ? ` · 已读至第 ${progress.chapterIndex + 1} 章` : ' · 点击在线阅读'}
+                  </div>
+                </div>
+                <button className="btn primary" onClick={() => onOpenOnline(b)}>
+                  阅读
+                </button>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {books.length === 0 && onlineBooks.length === 0 ? (
         <div className="empty-state">
           <div style={{ fontSize: 40 }}>📖</div>
-          <p>书架还是空的</p>
+          <p>书架和在线书库都是空的</p>
           <p style={{ fontSize: 13 }}>点击上方按钮选择 TXT 小说，或直接把文件拖进页面</p>
           <button className="btn primary" onClick={onImport}>
             打开 TXT 文件

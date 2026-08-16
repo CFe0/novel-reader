@@ -32,6 +32,10 @@ export function bookIdOf(file: File): string {
   return `${file.name}|${file.size}|${file.lastModified}`;
 }
 
+export function onlineBookId(fileName: string, size: number): string {
+  return `online|${fileName}|${size}`;
+}
+
 export async function saveHandle(id: string, handle: FileSystemFileHandle | null): Promise<void> {
   if (handle) {
     await idbPut('handles', { id, handle });

@@ -39,7 +39,12 @@ npm run build      # 产物：dist/index.html
    `https://<你的用户名>.github.io/novel-reader/`
 5. 之后每次 `git push`，GitHub Actions 都会自动重新构建并发布最新版。
 
-> 在线书库：允许公开的小说可放入 `books/` 目录，后续版本将支持从仓库直接加载（任何设备联网即读，无需本地文件）。
+## 在线书库（无需本地文件）
+
+- 把允许公开的 TXT 小说放入 `public/books/` 目录；
+- `npm run build` 或 `npm run dev` 会自动生成 `books/index.json` 书单（无需手动维护）；
+- 打开部署后的站点，书架页顶部会显示“在线书库”，点击即可在线阅读；阅读进度按当前设备浏览器保存；
+- 站点与仓库是公开的，请只放置可以公开分享的内容。
 
 ## 浏览器支持
 
