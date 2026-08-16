@@ -25,6 +25,22 @@ npm run build      # 产物：dist/index.html
 
 > 建议：日常使用推荐通过 `npm run dev` 或任意静态服务器访问（功能最完整，尤其是“重新打开上次阅读位置”）。直接双击 `dist/index.html` 也可使用基础功能。
 
+## 部署到 GitHub Pages（在线访问）
+
+1. 在 GitHub 上新建一个**公开仓库**（例如 `novel-reader`），不要勾选“Add a README”（避免和本地冲突）。
+2. 在项目目录执行：
+   ```bash
+   git remote add origin https://github.com/<你的用户名>/novel-reader.git
+   git push -u origin master
+   ```
+   第一次推送时 Git 会弹出浏览器登录授权（你已在浏览器登录 GitHub 的话，确认即可）。
+3. 到仓库 **Settings → Pages**，Source 选择 **GitHub Actions**。
+4. 等待仓库 Actions 运行完成，访问地址：
+   `https://<你的用户名>.github.io/novel-reader/`
+5. 之后每次 `git push`，GitHub Actions 都会自动重新构建并发布最新版。
+
+> 在线书库：允许公开的小说可放入 `books/` 目录，后续版本将支持从仓库直接加载（任何设备联网即读，无需本地文件）。
+
 ## 浏览器支持
 
 - 目标浏览器：Google Chrome（桌面版）。
