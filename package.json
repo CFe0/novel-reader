@@ -1,0 +1,25 @@
+{
+  "name": "local-txt-reader",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "浏览器端本地 TXT 小说阅读器，起点中文网风格阅读页，纯本地运行",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test:smoke": "node scripts/run-smoke.mjs"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.0",
+    "vite-plugin-singlefile": "^2.2.0"
+  }
+}
