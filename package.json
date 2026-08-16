@@ -5,9 +5,9 @@
   "type": "module",
   "description": "浏览器端本地 TXT 小说阅读器，起点中文网风格阅读页，纯本地运行",
   "scripts": {
-    "predev": "node scripts/sync-books.mjs",
+    "predev": "node scripts/sync-books.mjs && node scripts/generate-book-chapters.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/sync-books.mjs",
+    "prebuild": "node scripts/sync-books.mjs && node scripts/generate-book-chapters.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test:smoke": "node scripts/run-smoke.mjs"

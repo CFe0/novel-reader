@@ -2,9 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 import Bookshelf from './components/Bookshelf';
 import Reader from './components/Reader';
-import type { BookRecord, Chapter, EncodingLabel, OnlineBook, ReaderSettings } from './types';
+import type {
+  BookRecord,
+  Chapter,
+  EncodingLabel,
+  OnlineBook,
+  OnlineChapterIndex,
+  ReaderSettings,
+} from './types';
 import { detectEncoding } from './lib/encoding';
 import { scanChapters } from './lib/chapters';
+import type { Sliceable } from './lib/chapters';
 import { idbAll, idbDelete, idbGet, idbPut } from './lib/storage';
 import {
   bookIdOf,
@@ -12,6 +20,7 @@ import {
   onlineBookId,
   openSavedFile,
   pickTxtWithPicker,
+  RemoteBookFile,
   saveHandle,
   supportsFilePicker,
 } from './lib/fileOpen';
@@ -19,7 +28,7 @@ import { loadSettings, saveSettings } from './lib/settings';
 
 type View =
   | { kind: 'shelf' }
-  | { kind: 'reader'; book: BookRecord; file: File; chapters: Chapter[]; encoding: EncodingLabel };
+  | { kind: 'reader'; book: BookRecord; file: File | Sliceable; chapters: Chapter[]; encoding: EncodingLabel };
 
 export default function App() {
   const [books, setBooks] = useState<BookRecord[]>([]);
@@ -110,46 +119,62 @@ export default function App() {
     [],
   );
 
-  const openOnlineBook = useCallback(
+  const openRemoteBook = useCallback(
     async (ob: OnlineBook) => {
       const url = `books/${encodeURIComponent(ob.fileName)}`;
-      setBusy('正在从网络加载书籍…');
+      setBusy('正在加载书籍信息…');
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const file = new File([await res.blob()], ob.fileName, { lastModified: 0 });
-        await openTxt(file, null, undefined, {
+        const idxUrl = `books/${encodeURIComponent(ob.title)}/chapters.json`;
+        const idxRes = await fetch(idxUrl);
+        if (!idxRes.ok) throw new Error(`HTTP ${idxRes.status}`);
+        const idx = (await idxRes.json()) as OnlineChapterIndex;
+        const source = new RemoteBookFile(url, idx.size);
+        const record: BookRecord = {
           id: onlineBookId(ob.fileName, ob.size),
+          name: ob.title,
+          fileName: ob.fileName,
+          size: ob.size,
+          lastModified: 0,
+          lastOpenedAt: Date.now(),
+          isFavorite: false,
+          encoding: idx.encoding,
+          chapterCount: idx.chapters.length,
           source: 'online',
           url,
-        });
-      } catch (err) {
-        console.warn('在线书籍加载失败', err);
+        };
+        setView({ kind: 'reader', book: record, file: source, chapters: idx.chapters, encoding: idx.encoding });
         setBusy(null);
-        alert('在线书籍加载失败，请检查网络后重试。');
+      } catch (err) {
+        console.warn('章节索引加载失败，回退整本下载', err);
+        setBusy('正在下载整本小说…');
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const file = new File([await res.blob()], ob.fileName, { lastModified: 0 });
+          await openTxt(file, null, undefined, {
+            id: onlineBookId(ob.fileName, ob.size),
+            source: 'online',
+            url,
+          });
+        } catch (err2) {
+          console.warn('在线书籍加载失败', err2);
+          setBusy(null);
+          alert('在线书籍加载失败，请检查网络后重试。');
+        }
       }
     },
     [openTxt],
   );
 
+  const openOnlineBook = useCallback(
+    (ob: OnlineBook) => openRemoteBook(ob),
+    [openRemoteBook],
+  );
+
   const reopenBook = useCallback(
     async (book: BookRecord) => {
-      if (book.source === 'online' && book.url) {
-        setBusy('正在从网络加载书籍…');
-        try {
-          const res = await fetch(book.url);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const file = new File([await res.blob()], book.fileName, { lastModified: 0 });
-          await openTxt(file, null, book.encoding ?? undefined, {
-            id: book.id,
-            source: 'online',
-            url: book.url,
-          });
-        } catch (err) {
-          console.warn('在线书籍重新加载失败', err);
-          setBusy(null);
-          alert('在线书籍加载失败，请检查网络后重试。');
-        }
+      if (book.source === 'online') {
+        await openRemoteBook({ title: book.name, fileName: book.fileName, size: book.size });
         return;
       }
       setBusy('正在打开…');
@@ -162,14 +187,18 @@ export default function App() {
       const handle = await getSavedHandle(book.id);
       await openTxt(file, handle, book.encoding ?? undefined);
     },
-    [openTxt],
+    [openRemoteBook, openTxt],
   );
 
   const changeEncoding = useCallback(
     async (enc: EncodingLabel) => {
       if (view.kind !== 'reader') return;
+      if (view.book.source === 'online') {
+        alert('在线书籍暂不支持切换编码（书内编码已在发布时识别）。');
+        return;
+      }
       setBusy('正在按新编码重新解析章节…');
-      const chapters = await scanChapters(view.file, enc, (p) =>
+      const chapters = await scanChapters(view.file as File, enc, (p) =>
         setBusy(`正在解析章节… ${Math.round(p * 100)}%`),
       );
       chapterCacheRef.current.set(view.book.id, chapters);

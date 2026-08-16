@@ -75,6 +75,7 @@ body {
 button {
   font-family: inherit;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 /* ---------- 通用按钮 ---------- */
@@ -658,5 +659,74 @@ button {
 
   .topbar-tools {
     display: flex;
+  }
+}
+
+/* ---------- 移动端适配 ---------- */
+.mobile-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-bar {
+    display: flex;
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 10px;
+    z-index: 28;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    box-shadow: 0 4px 16px var(--shadow);
+    max-width: 96vw;
+    overflow-x: auto;
+  }
+
+  .mobile-bar .btn {
+    min-height: 38px;
+    white-space: nowrap;
+    flex: none;
+  }
+
+  .reader-content {
+    padding: 24px 16px 110px;
+  }
+
+  .chapter-title {
+    margin: 8px 0 24px;
+  }
+
+  .shelf {
+    padding: 18px 12px 90px;
+  }
+
+  .sidebar,
+  .settings-drawer {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .topbar-book {
+    max-width: 38vw;
+  }
+
+  .topbar-chapter {
+    max-width: 30vw;
+  }
+
+  .book-card {
+    padding: 12px;
+    flex-wrap: wrap;
+  }
+
+  .book-card .btn {
+    padding: 6px 10px;
+  }
+
+  .reader-bottombar {
+    display: none;
   }
 }

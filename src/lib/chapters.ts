@@ -1,6 +1,12 @@
 import type { Chapter, EncodingLabel } from '../types';
 import { decodeWithLabel } from './encoding';
 
+/** 可被按章节切片的文件来源（本地 File 或在线 Range 远程文件） */
+export interface Sliceable {
+  size: number;
+  slice(start: number, end: number): Blob | Promise<Blob>;
+}
+
 /**
  * 可扩展的章节规则表：命中顺序即优先级。
  * 每个正则作用于“去掉首尾空白后的整行”。
@@ -96,10 +102,11 @@ export async function scanChapters(
 }
 
 export async function decodeChapter(
-  file: File,
+  source: Sliceable,
   chapter: Chapter,
   encoding: EncodingLabel,
 ): Promise<string> {
-  const buf = await file.slice(chapter.start, chapter.end).arrayBuffer();
+  const blob = await source.slice(chapter.start, chapter.end);
+  const buf = await blob.arrayBuffer();
   return decodeWithLabel(buf, encoding);
 }

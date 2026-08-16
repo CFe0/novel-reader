@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BookRecord, Chapter, EncodingLabel, ReaderSettings, ThemeName } from '../types';
-import { decodeChapter } from '../lib/chapters';
+import { decodeChapter, type Sliceable } from '../lib/chapters';
 import { getProgress, saveProgress } from '../lib/storage';
 import ChapterSidebar from './ChapterSidebar';
 import SettingsDrawer from './SettingsDrawer';
@@ -24,7 +24,7 @@ const TRIM_BEFORE = 15;
 
 interface Props {
   book: BookRecord;
-  file: File;
+  file: File | Sliceable;
   chapters: Chapter[];
   encoding: EncodingLabel;
   settings: ReaderSettings;
@@ -479,6 +479,32 @@ export default function Reader({
         </footer>
       )}
 
+      <div className="mobile-bar">
+        {settings.readingMode === 'chapter' && (
+          <button className="btn" disabled={activeIndex === 0} onClick={() => goToChapter(activeIndex - 1)}>
+            上一章
+          </button>
+        )}
+        <button className="btn" onClick={() => setSidebarOpen(true)}>
+          目录
+        </button>
+        <button className="btn" onClick={() => setSettingsOpen(true)}>
+          设置
+        </button>
+        <button className="btn" onClick={cycleTheme}>
+          主题
+        </button>
+        {settings.readingMode === 'chapter' && (
+          <button
+            className="btn primary"
+            disabled={activeIndex >= lastChapterIndex}
+            onClick={() => goToChapter(activeIndex + 1)}
+          >
+            下一章
+          </button>
+        )}
+      </div>
+
       {sidebarOpen && (
         <ChapterSidebar
           chapters={chapters}
@@ -495,6 +521,7 @@ export default function Reader({
           settings={settings}
           onChange={onSettingsChange}
           encoding={encoding}
+          isOnline={book.source === 'online'}
           onEncodingChange={onEncodingChange}
           onClose={() => setSettingsOpen(false)}
         />

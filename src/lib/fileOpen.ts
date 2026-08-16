@@ -1,5 +1,6 @@
 import type { OpenedTxt } from '../types';
 import { idbDelete, idbGet, idbPut } from './storage';
+import type { Sliceable } from './chapters';
 
 interface PickerWindow {
   showOpenFilePicker?: (options?: {
@@ -34,6 +35,30 @@ export function bookIdOf(file: File): string {
 
 export function onlineBookId(fileName: string, size: number): string {
   return `online|${fileName}|${size}`;
+}
+
+/**
+ * 在线书籍的“远程文件”：优先用 HTTP Range 按需下载单个章节；
+ * 若服务器不支持 Range（如本地开发服务器），则首次请求下载全本并缓存，之后从内存切片。
+ */
+export class RemoteBookFile implements Sliceable {
+  private cache: Blob | null = null;
+
+  constructor(
+    private readonly url: string,
+    public readonly size: number,
+  ) {}
+
+  async slice(start: number, end: number): Promise<Blob> {
+    if (this.cache) return this.cache.slice(start, end);
+    const res = await fetch(this.url, {
+      headers: { Range: `bytes=${start}-${Math.max(start, end - 1)}` },
+    });
+    if (res.status === 206) return await res.blob();
+    const full = await res.blob();
+    this.cache = full;
+    return full.slice(start, end);
+  }
 }
 
 export async function saveHandle(id: string, handle: FileSystemFileHandle | null): Promise<void> {

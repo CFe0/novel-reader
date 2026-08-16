@@ -26,6 +26,13 @@ export interface OnlineBook {
   size: number;
 }
 
+export interface OnlineChapterIndex {
+  fileName: string;
+  size: number;
+  encoding: EncodingLabel;
+  chapters: Chapter[];
+}
+
 export interface Progress {
   bookId: string;
   chapterIndex: number;

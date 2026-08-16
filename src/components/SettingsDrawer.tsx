@@ -21,11 +21,19 @@ interface Props {
   settings: ReaderSettings;
   onChange: (next: ReaderSettings) => void;
   encoding: EncodingLabel;
+  isOnline?: boolean;
   onEncodingChange: (label: EncodingLabel) => void;
   onClose: () => void;
 }
 
-export default function SettingsDrawer({ settings, onChange, encoding, onEncodingChange, onClose }: Props) {
+export default function SettingsDrawer({
+  settings,
+  onChange,
+  encoding,
+  isOnline = false,
+  onEncodingChange,
+  onClose,
+}: Props) {
   const patch = (p: Partial<ReaderSettings>) => onChange({ ...settings, ...p });
 
   return (
@@ -154,25 +162,27 @@ export default function SettingsDrawer({ settings, onChange, encoding, onEncodin
           </select>
         </div>
 
-        <div className="setting-row">
-          <div className="setting-label">
-            <span>文件编码</span>
-            <span>{encoding}</span>
+        {!isOnline && (
+          <div className="setting-row">
+            <div className="setting-label">
+              <span>文件编码</span>
+              <span>{encoding}</span>
+            </div>
+            <select
+              value={encoding}
+              onChange={(e) => onEncodingChange(e.target.value as EncodingLabel)}
+            >
+              {ENCODING_OPTIONS.map((o) => (
+                <option key={o.label} value={o.label}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+            <div className="setting-label" style={{ marginTop: 8 }}>
+              切换编码后立即重新解析章节
+            </div>
           </div>
-          <select
-            value={encoding}
-            onChange={(e) => onEncodingChange(e.target.value as EncodingLabel)}
-          >
-            {ENCODING_OPTIONS.map((o) => (
-              <option key={o.label} value={o.label}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-          <div className="setting-label" style={{ marginTop: 8 }}>
-            切换编码后立即重新解析章节
-          </div>
-        </div>
+        )}
       </aside>
     </>
   );
