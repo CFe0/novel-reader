@@ -1,29 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react';
-import type { BookRecord, Chapter, EncodingLabel, ReaderSettings, ThemeName } from '../types';
+import type { BookRecord, Chapter, EncodingLabel, ReaderSettings } from '../types';
 import { decodeChapter, type Sliceable } from '../lib/chapters';
 import { getProgress, saveProgress } from '../lib/storage';
 import { fetchOnlineChapter } from '../lib/fileOpen';
+import { THEME_OPTIONS, THEME_ORDER, THEME_SWATCHES } from '../lib/themes';
 import ChapterSidebar from './ChapterSidebar';
 import SettingsDrawer from './SettingsDrawer';
 
-const THEME_ORDER: ThemeName[] = ['light', 'sepia', 'green', 'dark', 'lightGreen', 'sage'];
-const THEME_NAMES: Record<ThemeName, string> = {
-  light: '日间',
-  sepia: '米黄',
-  green: '护眼绿',
-  dark: '夜间',
-  lightGreen: '浅绿',
-  sage: '豆绿',
-};
-const SWATCH_COLORS: Record<ThemeName, string> = {
-  light: '#ffffff',
-  sepia: '#f6f0e3',
-  green: '#e9f1e5',
-  dark: '#161719',
-  lightGreen: '#E6F4DF',
-  sage: '#DDE8D2',
-};
 const AUTO_LOAD_MARGIN = 600;
 // 滚动模式下，当前章节之前最多保留的章节数；更早的章节会从页面卸载以节省内存
 const TRIM_BEFORE = 15;
@@ -493,17 +477,17 @@ export default function Reader({
         </button>
         {themePopoverOpen && (
           <div className="theme-popover">
-            {THEME_ORDER.map((t) => (
+            {THEME_OPTIONS.map((t) => (
               <button
-                key={t}
-                className={`theme-swatch-row${settings.theme === t ? ' active' : ''}`}
+                key={t.id}
+                className={`theme-swatch-row${settings.theme === t.id ? ' active' : ''}`}
                 onClick={() => {
-                  onSettingsChange({ ...settings, theme: t });
+                  onSettingsChange({ ...settings, theme: t.id });
                   setThemePopoverOpen(false);
                 }}
               >
-                <span className="swatch" style={{ background: SWATCH_COLORS[t] }} />
-                {THEME_NAMES[t]}
+                <span className="swatch" style={{ background: THEME_SWATCHES[t.id] }} />
+                {t.name}
               </button>
             ))}
           </div>

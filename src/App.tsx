@@ -9,6 +9,7 @@ import type {
   OnlineBook,
   OnlineChapterIndex,
   ReaderSettings,
+  ThemeName,
 } from './types';
 import { detectEncoding } from './lib/encoding';
 import { scanChapters } from './lib/chapters';
@@ -24,7 +25,7 @@ import {
   saveHandle,
   supportsFilePicker,
 } from './lib/fileOpen';
-import { loadSettings, saveSettings } from './lib/settings';
+import { loadSettings, loadShelfTheme, saveSettings, saveShelfTheme } from './lib/settings';
 
 type View =
   | { kind: 'shelf' }
@@ -34,6 +35,7 @@ export default function App() {
   const [books, setBooks] = useState<BookRecord[]>([]);
   const [onlineBooks, setOnlineBooks] = useState<OnlineBook[]>([]);
   const [settings, setSettings] = useState<ReaderSettings>(() => loadSettings());
+  const [shelfTheme, setShelfTheme] = useState<ThemeName>(() => loadShelfTheme());
   const [view, setView] = useState<View>({ kind: 'shelf' });
   const [busy, setBusy] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -41,8 +43,8 @@ export default function App() {
   const chapterCacheRef = useRef(new Map<string, Chapter[]>());
 
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme;
-  }, [settings.theme]);
+    document.documentElement.dataset.theme = view.kind === 'shelf' ? shelfTheme : settings.theme;
+  }, [view.kind, shelfTheme, settings.theme]);
 
   useEffect(() => {
     let alive = true;
@@ -235,6 +237,11 @@ export default function App() {
     saveSettings(next);
   }, []);
 
+  const updateShelfTheme = useCallback((theme: ThemeName) => {
+    setShelfTheme(theme);
+    saveShelfTheme(theme);
+  }, []);
+
   const onImportClick = useCallback(async () => {
     if (supportsFilePicker()) {
       try {
@@ -282,6 +289,8 @@ export default function App() {
         <Bookshelf
           books={books}
           onlineBooks={onlineBooks}
+          shelfTheme={shelfTheme}
+          onShelfThemeChange={updateShelfTheme}
           onImport={() => void onImportClick()}
           onOpen={(b) => void reopenBook(b)}
           onOpenOnline={(b) => void openOnlineBook(b)}

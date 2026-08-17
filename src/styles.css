@@ -673,6 +673,22 @@ button {
   color: var(--accent);
 }
 
+.shelf-theme-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: 132px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: 0 6px 20px var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .swatch {
   width: 20px;
   height: 20px;

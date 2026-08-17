@@ -1,14 +1,6 @@
-import type { EncodingLabel, ReaderSettings, ThemeName } from '../types';
+import type { EncodingLabel, ReaderSettings } from '../types';
 import { ENCODING_OPTIONS } from '../lib/encoding';
-
-const THEMES: Array<{ id: ThemeName; name: string }> = [
-  { id: 'light', name: '日间' },
-  { id: 'sepia', name: '米黄' },
-  { id: 'green', name: '护眼绿' },
-  { id: 'dark', name: '夜间' },
-  { id: 'lightGreen', name: '浅绿' },
-  { id: 'sage', name: '豆绿' },
-];
+import { THEME_OPTIONS } from '../lib/themes';
 
 const FONTS = [
   { name: '宋体', value: "'SimSun', 'Songti SC', serif" },
@@ -53,7 +45,7 @@ export default function SettingsDrawer({
         <div className="setting-row">
           <div className="setting-label">主题</div>
           <div className="theme-grid">
-            {THEMES.map((t) => (
+            {THEME_OPTIONS.map((t) => (
               <button
                 key={t.id}
                 className={`theme-btn${settings.theme === t.id ? ' active' : ''}`}

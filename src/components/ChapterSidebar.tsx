@@ -15,6 +15,7 @@ interface Props {
 
 export default function ChapterSidebar({ chapters, current, onSelect, onClose }: Props) {
   const [query, setQuery] = useState('');
+  const listRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number>(() => {
     try {
       const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
@@ -60,6 +61,16 @@ export default function ChapterSidebar({ chapters, current, onSelect, onClose }:
     return chapters.filter((c) => c.title.toLowerCase().includes(q));
   }, [chapters, query]);
 
+  // 打开目录 / 切换章节时，自动滚动定位到当前章节
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const item = list.querySelector<HTMLElement>(`[data-index="${current}"]`);
+    if (item) {
+      list.scrollTop = item.offsetTop - list.clientHeight / 2 + item.clientHeight / 2;
+    }
+  }, [current, query]);
+
   return (
     <>
       <div className="backdrop" onClick={onClose} />
@@ -80,10 +91,11 @@ export default function ChapterSidebar({ chapters, current, onSelect, onClose }:
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <div className="chapter-list">
+        <div className="chapter-list" ref={listRef}>
           {filtered.map((c) => (
             <button
               key={c.index}
+              data-index={c.index}
               className={`chapter-item${c.index === current ? ' current' : ''}`}
               title={c.title}
               onClick={() => onSelect(c.index)}

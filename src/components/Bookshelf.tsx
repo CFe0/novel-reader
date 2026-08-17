@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { BookRecord, OnlineBook, Progress } from '../types';
+import type { BookRecord, OnlineBook, Progress, ThemeName } from '../types';
 import { idbAll } from '../lib/storage';
 import { ENCODING_OPTIONS } from '../lib/encoding';
 import { onlineBookId } from '../lib/fileOpen';
+import { THEME_OPTIONS, THEME_SWATCHES } from '../lib/themes';
 
 interface Props {
   books: BookRecord[];
   onlineBooks: OnlineBook[];
+  shelfTheme: ThemeName;
+  onShelfThemeChange: (theme: ThemeName) => void;
   onImport: () => void;
   onOpen: (book: BookRecord) => void;
   onOpenOnline: (book: OnlineBook) => void;
@@ -79,6 +82,8 @@ function BookCard({ book, progress, onOpen, onRemove, onToggleFavorite }: CardPr
 export default function Bookshelf({
   books,
   onlineBooks,
+  shelfTheme,
+  onShelfThemeChange,
   onImport,
   onOpen,
   onOpenOnline,
@@ -89,6 +94,7 @@ export default function Bookshelf({
   const [progressMap, setProgressMap] = useState<Record<string, Progress>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [updated, setUpdated] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -122,9 +128,31 @@ export default function Bookshelf({
           <h1 className="shelf-title">本地小说阅读器</h1>
           <div className="shelf-sub">纯本地运行 · 文件不上传 · 起点风格阅读体验</div>
         </div>
-        <button className="btn primary" onClick={onImport}>
-          打开 TXT
-        </button>
+        <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+          <button className="btn" onClick={() => setThemeOpen((o) => !o)}>
+            主题：{THEME_OPTIONS.find((t) => t.id === shelfTheme)?.name}
+          </button>
+          <button className="btn primary" onClick={onImport}>
+            打开 TXT
+          </button>
+          {themeOpen && (
+            <div className="shelf-theme-popover">
+              {THEME_OPTIONS.map((t) => (
+                <button
+                  key={t.id}
+                  className={`theme-swatch-row${shelfTheme === t.id ? ' active' : ''}`}
+                  onClick={() => {
+                    onShelfThemeChange(t.id);
+                    setThemeOpen(false);
+                  }}
+                >
+                  <span className="swatch" style={{ background: THEME_SWATCHES[t.id] }} />
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </header>
 
       <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
