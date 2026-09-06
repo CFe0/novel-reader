@@ -1,36 +1,35 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
 
 where node >nul 2>nul
 if errorlevel 1 (
-  echo [错误] 未检测到 Node.js，请先到 https://nodejs.org 安装 LTS 版本。
+  echo [Error] Node.js not found. Please install LTS from https://nodejs.org
   pause
   exit /b 1
 )
 
 netstat -ano | findstr ":8612" | findstr "LISTENING" >nul 2>nul
 if not errorlevel 1 (
-  echo 局域网书库服务已经在运行，直接打开电脑管理页。
+  echo LAN server is already running. Opening management page...
   start "" http://localhost:8612/
   pause
   exit /b 0
 )
 
 if not exist dist\index.html (
-  echo 正在首次构建...
+  echo First build, please wait...
   call npm run build
   if errorlevel 1 (
-    echo [错误] 构建失败。
+    echo [Error] Build failed.
     pause
     exit /b 1
   )
 )
 
-echo 正在启动局域网书库服务...
-start "局域网书库服务" cmd /k node server/lan-server.mjs
+echo Starting LAN server...
+start "NovelReader LAN Server" cmd /k node server/lan-server.mjs
 timeout /t 3 /nobreak >nul
-echo 正在打开电脑端管理页 http://localhost:8612/
+echo Opening management page http://localhost:8612/
 start "" http://localhost:8612/
-echo 手机请访问服务窗口打印的“手机访问”地址（关闭本窗口不影响服务）。
+echo Phone URL is printed in the server window.
 pause >nul
