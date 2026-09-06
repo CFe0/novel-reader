@@ -398,6 +398,10 @@ export default function App() {
       hiddenLanRef.current = next;
       setHiddenLan(next);
       setLanBooks((prev) => prev.filter((ob) => !ids.includes(lanBookId(ob.fileName, ob.size))));
+      for (const id of ids) {
+        await idbDelete('books', id);
+      }
+      setBooks((prev) => prev.filter((b) => !ids.includes(b.id)));
       void syncLanData(undefined, undefined, next);
     },
     [hiddenLan, syncLanData],
