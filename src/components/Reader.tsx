@@ -396,7 +396,7 @@ export default function Reader({
   const visibleChapters = chapters.slice(trimStart, rangeEnd + 1);
   const isLast = rangeEnd >= lastChapterIndex;
   const activeChapter = chapters[activeIndex] ?? chapters[0];
-  const railRight = `max(8px, calc(50% - ${settings.maxWidth / 2}px - 56px))`;
+  const railRight = `max(8px, calc(50% - ${settings.maxWidth / 2}px - 70px))`;
 
   return (
     <div
