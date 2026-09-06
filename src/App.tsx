@@ -46,6 +46,7 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const pendingLocalRef = useRef<BookRecord | null>(null);
   const chapterCacheRef = useRef(new Map<string, Chapter[]>());
 
   useEffect(() => {
@@ -290,10 +291,9 @@ export default function App() {
       }
       const handle = await getSavedHandle(book.id);
       if (!handle) {
-        setBusy(null);
-        alert(
-          '当前网页环境无法自动记住该文件（浏览器仅对 https 或 localhost 开放此能力）。\n请点击右上角“打开 TXT”，重新选择同一个文件（同一文件会自动恢复进度与分组）。',
-        );
+        // 非安全网页/文件选择器导入没有文件句柄：自动弹出选择框，选同一文件即可恢复进度
+        pendingLocalRef.current = book;
+        inputRef.current?.click();
         return;
       }
       setBusy('正在打开…');
@@ -434,6 +434,7 @@ export default function App() {
   );
 
   const onImportClick = useCallback(async () => {
+    pendingLocalRef.current = null;
     if (supportsFilePicker()) {
       try {
         const picked = await pickTxtFilesWithPicker();
@@ -451,11 +452,21 @@ export default function App() {
 
   const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
-    if (files.length) void importMany(files);
+    if (files.length) {
+      if (pendingLocalRef.current && files.length === 1) {
+        const pending = pendingLocalRef.current;
+        pendingLocalRef.current = null;
+        void openTxt(files[0], null, pending.encoding ?? undefined);
+      } else {
+        pendingLocalRef.current = null;
+        void importMany(files);
+      }
+    }
     e.target.value = '';
   };
 
   const onFolderInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    pendingLocalRef.current = null;
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (files.length) void importMany(files);
     e.target.value = '';

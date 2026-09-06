@@ -81,8 +81,10 @@ function BookLine({
       <div className="book-main" onClick={onClick}>
         <div className="book-name">{book.name}</div>
         <div className="book-meta">
-          {meta ?? `${sourceName(book.source)} · ${formatSize(book.size)} · ${encodingName(book.encoding)}`}
-          {progressText(book, progress) ? ` · ${progressText(book, progress)}` : ''} · {formatTime(book.lastOpenedAt)}
+          {meta ??
+            `${sourceName(book.source)} · ${formatSize(book.size)} · ${encodingName(book.encoding)}`}
+          {!meta && progressText(book, progress) ? ` · ${progressText(book, progress)}` : ''}
+          {!meta ? ` · ${formatTime(book.lastOpenedAt)}` : ''}
         </div>
       </div>
       {actions}
@@ -155,7 +157,7 @@ export default function Bookshelf({
       books
         .filter((b) => b.lastOpenedAt > 0)
         .sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)
-        .slice(0, 3),
+        .slice(0, 2),
     [books],
   );
 
@@ -238,33 +240,33 @@ export default function Bookshelf({
         </div>
       </header>
 
-      <div className="section-title">最近阅读</div>
-      {recent.length === 0 && <div className="hint-text">还没有阅读记录，打开任意书库的一本小说后会显示在这里（最多 3 本）。</div>}
+      <div className="section-title">最近阅读（{recent.length}/2）</div>
+      {recent.length === 0 && <div className="hint-text">还没有阅读记录，打开任意书库的一本小说后会显示在这里（最多 2 本）。</div>}
       <div className="recent-list">
         {recent.map((b) => {
           const p = progressMap[b.id];
           const total = b.chapterCount;
           const percent = p && total ? Math.round(((p.chapterIndex + 1) / total) * 100) : null;
+          const prog = p
+            ? total
+              ? `已读第 ${p.chapterIndex + 1}/${total} 章（约 ${percent}%）`
+              : `已读第 ${p.chapterIndex + 1} 章`
+            : total
+              ? `未读 · 共 ${total} 章`
+              : '未读';
           return (
-            <div key={b.id} className="recent-card" onClick={() => openRecent(b)}>
-              <div className="book-name">{b.name}</div>
-              <div className="book-meta">
-                书库：{sourceName(b.source)} · 查看时间：{formatTime(b.lastOpenedAt)}
-              </div>
-              <div className="book-meta">
-                进度：
-                {p
-                  ? total
-                    ? `第 ${p.chapterIndex + 1}/${total} 章（约 ${percent}%）`
-                    : `第 ${p.chapterIndex + 1} 章`
-                  : total
-                    ? `尚未阅读 · 共 ${total} 章`
-                    : '尚未阅读'}
-              </div>
-              <div className="btn primary" style={{ alignSelf: 'flex-start' }}>
-                继续阅读
-              </div>
-            </div>
+            <BookLine
+              key={b.id}
+              book={b}
+              progress={progressMap[b.id]}
+              onClick={() => openRecent(b)}
+              meta={`书库：${sourceName(b.source)} · 查看：${formatTime(b.lastOpenedAt)} · ${prog}`}
+              actions={
+                <button className="btn primary" onClick={() => openRecent(b)}>
+                  继续阅读
+                </button>
+              }
+            />
           );
         })}
       </div>
