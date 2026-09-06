@@ -419,13 +419,13 @@ export default function App() {
   }, []);
 
   const importMany = useCallback(
-    async (files: File[]) => {
-      const txts = files.filter((f) => /\.txt$/i.test(f.name));
-      if (!txts.length) return;
-      setBusy(`正在导入 ${txts.length} 本小说…`);
-      for (let i = 0; i < txts.length; i++) {
-        setBusy(`正在导入 ${i + 1}/${txts.length}：${txts[i].name}`);
-        await openTxt(txts[i], null);
+    async (files: File[], handles?: Array<FileSystemFileHandle | null>) => {
+      const idxs = files.map((f, i) => ({ f, h: handles?.[i] ?? null })).filter((x) => /\.txt$/i.test(x.f.name));
+      if (!idxs.length) return;
+      setBusy(`正在导入 ${idxs.length} 本小说…`);
+      for (let i = 0; i < idxs.length; i++) {
+        setBusy(`正在导入 ${i + 1}/${idxs.length}：${idxs[i].f.name}`);
+        await openTxt(idxs[i].f, idxs[i].h);
       }
       setView({ kind: 'shelf' });
       setBusy(null);
@@ -440,7 +440,8 @@ export default function App() {
         const picked = await pickTxtFilesWithPicker();
         if (picked.length) {
           const files = picked.map((p) => p.file);
-          void importMany(files);
+          const handles = picked.map((p) => p.handle);
+          void importMany(files, handles);
         }
       } catch {
         alert('打开文件失败，请重试。');
