@@ -18,6 +18,7 @@ import { idbAll, idbDelete, idbGet, idbPut } from './lib/storage';
 import {
   bookIdOf,
   getSavedHandle,
+  lanBookId,
   onlineBookId,
   openSavedFile,
   pickTxtWithPicker,
@@ -34,6 +35,8 @@ type View =
 export default function App() {
   const [books, setBooks] = useState<BookRecord[]>([]);
   const [onlineBooks, setOnlineBooks] = useState<OnlineBook[]>([]);
+  const [lanBooks, setLanBooks] = useState<OnlineBook[]>([]);
+  const [lanAvailable, setLanAvailable] = useState(false);
   const [settings, setSettings] = useState<ReaderSettings>(() => loadSettings());
   const [shelfTheme, setShelfTheme] = useState<ThemeName>(() => loadShelfTheme());
   const [view, setView] = useState<View>({ kind: 'shelf' });
@@ -73,6 +76,27 @@ export default function App() {
   useEffect(() => {
     if (view.kind === 'shelf') void refreshOnlineBooks();
   }, [view.kind, refreshOnlineBooks]);
+
+  // 局域网书库：仅在本机 lan-server（npm run lan）提供页面时可检测到
+  useEffect(() => {
+    if (view.kind !== 'shelf') return;
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch(`lan-books/index.json?t=${Date.now()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as { books?: OnlineBook[] };
+        if (!alive) return;
+        setLanBooks(data.books ?? []);
+        setLanAvailable(true);
+      } catch {
+        if (alive) setLanAvailable(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [view.kind]);
 
   const openTxt = useCallback(
     async (
@@ -172,6 +196,28 @@ export default function App() {
   const openOnlineBook = useCallback(
     (ob: OnlineBook) => openRemoteBook(ob),
     [openRemoteBook],
+  );
+
+  const openLanBook = useCallback(
+    async (ob: OnlineBook) => {
+      const url = `lan-books/${encodeURIComponent(ob.fileName)}`;
+      setBusy('正在从电脑加载书籍…');
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const file = new File([await res.blob()], ob.fileName, { lastModified: 0 });
+        await openTxt(file, null, undefined, {
+          id: lanBookId(ob.fileName, file.size),
+          source: 'online',
+          url,
+        });
+      } catch (err) {
+        console.warn('局域网书籍加载失败', err);
+        setBusy(null);
+        alert('局域网书籍加载失败，请确认电脑端服务正在运行。');
+      }
+    },
+    [openTxt],
   );
 
   const reopenBook = useCallback(
@@ -289,11 +335,14 @@ export default function App() {
         <Bookshelf
           books={books}
           onlineBooks={onlineBooks}
+          lanBooks={lanBooks}
+          lanAvailable={lanAvailable}
           shelfTheme={shelfTheme}
           onShelfThemeChange={updateShelfTheme}
           onImport={() => void onImportClick()}
           onOpen={(b) => void reopenBook(b)}
           onOpenOnline={(b) => void openOnlineBook(b)}
+          onOpenLan={(b) => void openLanBook(b)}
           onRefreshOnlineBooks={() => refreshOnlineBooks()}
           onRemove={(b) => void removeBook(b)}
           onToggleFavorite={(b) => void toggleFavorite(b)}

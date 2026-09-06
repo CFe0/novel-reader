@@ -10,6 +10,7 @@
     "prebuild": "node scripts/sync-books.mjs && node scripts/generate-book-chapters.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "lan": "npm run build && node server/lan-server.mjs",
     "test:smoke": "node scripts/run-smoke.mjs"
   },
   "dependencies": {

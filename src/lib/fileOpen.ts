@@ -37,6 +37,10 @@ export function onlineBookId(fileName: string, size: number): string {
   return `online|${fileName}|${size}`;
 }
 
+export function lanBookId(fileName: string, size: number): string {
+  return `lan|${fileName}|${size}`;
+}
+
 /**
  * 在线书籍的“远程文件”：优先用 HTTP Range 按需下载单个章节；
  * 若服务器不支持 Range（如本地开发服务器），则首次请求下载全本并缓存，之后从内存切片。

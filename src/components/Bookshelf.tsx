@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react';
 import type { BookRecord, OnlineBook, Progress, ThemeName } from '../types';
 import { idbAll } from '../lib/storage';
 import { ENCODING_OPTIONS } from '../lib/encoding';
-import { onlineBookId } from '../lib/fileOpen';
+import { lanBookId, onlineBookId } from '../lib/fileOpen';
 import { THEME_OPTIONS, THEME_SWATCHES } from '../lib/themes';
 
 interface Props {
   books: BookRecord[];
   onlineBooks: OnlineBook[];
+  lanBooks: OnlineBook[];
+  lanAvailable: boolean;
   shelfTheme: ThemeName;
   onShelfThemeChange: (theme: ThemeName) => void;
   onImport: () => void;
   onOpen: (book: BookRecord) => void;
   onOpenOnline: (book: OnlineBook) => void;
+  onOpenLan: (book: OnlineBook) => void;
   onRefreshOnlineBooks: () => Promise<void>;
   onRemove: (book: BookRecord) => void;
   onToggleFavorite: (book: BookRecord) => void;
@@ -82,11 +85,14 @@ function BookCard({ book, progress, onOpen, onRemove, onToggleFavorite }: CardPr
 export default function Bookshelf({
   books,
   onlineBooks,
+  lanBooks,
+  lanAvailable,
   shelfTheme,
   onShelfThemeChange,
   onImport,
   onOpen,
   onOpenOnline,
+  onOpenLan,
   onRefreshOnlineBooks,
   onRemove,
   onToggleFavorite,
@@ -183,6 +189,35 @@ export default function Bookshelf({
         <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>
           暂无在线书籍，点击“更新在线书库”获取仓库中的最新书单。
         </div>
+      )}
+
+      {lanAvailable && (
+        <>
+          <div className="section-title">局域网书库（{lanBooks.length}）· 本机电脑共享，需同一网络</div>
+          {lanBooks.length > 0 ? (
+            lanBooks.map((b) => {
+              const progress = progressMap[lanBookId(b.fileName, b.size)];
+              return (
+                <div className="book-card" key={b.fileName}>
+                  <div className="book-main" onClick={() => onOpenLan(b)}>
+                    <div className="book-name">{b.title}</div>
+                    <div className="book-meta">
+                      局域网 · {formatSize(b.size)}
+                      {progress ? ` · 已读至第 ${progress.chapterIndex + 1} 章` : ' · 点击阅读'}
+                    </div>
+                  </div>
+                  <button className="btn primary" onClick={() => onOpenLan(b)}>
+                    阅读
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>
+              电脑端书库为空：请在项目目录的「局域网书库」文件夹放入 TXT 小说。
+            </div>
+          )}
+        </>
       )}
 
       {books.length === 0 ? (

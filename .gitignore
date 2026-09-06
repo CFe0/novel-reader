@@ -3,5 +3,6 @@ dist/
 .tmp/
 *.local
 public/books/*/chapters/
+局域网书库/*.txt
 .DS_Store
 Thumbs.db
