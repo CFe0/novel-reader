@@ -1,7 +1,7 @@
 import type { Progress } from '../types';
 
 const DB_NAME = 'txt-reader';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -14,6 +14,7 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('progress')) db.createObjectStore('progress', { keyPath: 'bookId' });
       if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('groups')) db.createObjectStore('groups', { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);

@@ -395,6 +395,126 @@ button {
   word-break: break-word;
 }
 
+/* ---------- 书架：文件夹与批量管理 ---------- */
+.folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.folder-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.folder-card:hover {
+  box-shadow: 0 3px 14px var(--shadow);
+  transform: translateY(-1px);
+}
+
+.folder-main {
+  cursor: pointer;
+}
+
+.folder-covers {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.folder-cover {
+  aspect-ratio: 3 / 4;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  padding: 2px;
+  text-align: center;
+}
+
+.folder-cover.empty {
+  background: transparent;
+  border: 1px dashed var(--border);
+}
+
+.folder-name {
+  margin-top: 10px;
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-count {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.folder-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+.folder-actions .icon-btn {
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.cover-tile {
+  flex: none;
+  width: 52px;
+  height: 66px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.batch-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 6px 20px var(--shadow);
+  max-width: 96vw;
+  overflow-x: auto;
+}
+
+.batch-bar select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
 .loading-line {
   text-align: center;
   color: var(--muted);

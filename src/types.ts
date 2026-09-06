@@ -16,9 +16,18 @@ export interface BookRecord {
   isFavorite: boolean;
   encoding: EncodingLabel | null;
   chapterCount: number | null;
-  source: 'local' | 'online';
+  source: 'local' | 'online' | 'lan';
   url?: string;
   chaptersUrl?: string;
+  groupId?: string;
+  pinned?: boolean;
+}
+
+export interface BookGroup {
+  id: string;
+  name: string;
+  order: number;
+  createdAt: number;
 }
 
 export interface OnlineBook {

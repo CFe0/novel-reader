@@ -4,6 +4,7 @@ import Bookshelf from './components/Bookshelf';
 import Reader from './components/Reader';
 import type {
   BookRecord,
+  BookGroup,
   Chapter,
   EncodingLabel,
   OnlineBook,
@@ -37,6 +38,7 @@ export default function App() {
   const [onlineBooks, setOnlineBooks] = useState<OnlineBook[]>([]);
   const [lanBooks, setLanBooks] = useState<OnlineBook[]>([]);
   const [lanAvailable, setLanAvailable] = useState(false);
+  const [groups, setGroups] = useState<BookGroup[]>([]);
   const [settings, setSettings] = useState<ReaderSettings>(() => loadSettings());
   const [shelfTheme, setShelfTheme] = useState<ThemeName>(() => loadShelfTheme());
   const [view, setView] = useState<View>({ kind: 'shelf' });
@@ -55,6 +57,18 @@ export default function App() {
       if (!alive) return;
       list.sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
       setBooks(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void idbAll<BookGroup>('groups').then((list) => {
+      if (!alive) return;
+      list.sort((a, b) => a.order - b.order);
+      setGroups(list);
     });
     return () => {
       alive = false;
@@ -103,7 +117,7 @@ export default function App() {
       file: File,
       handle: FileSystemFileHandle | null,
       encoding?: EncodingLabel,
-      opts?: { id?: string; source?: 'local' | 'online'; url?: string },
+      opts?: { id?: string; source?: 'local' | 'online' | 'lan'; url?: string; groupId?: string; pinned?: boolean },
     ) => {
       const id = opts?.id ?? bookIdOf(file);
     let enc = encoding;
@@ -131,14 +145,14 @@ export default function App() {
       chapterCount: chapters.length,
       source: opts?.source ?? 'local',
       ...(opts?.url ? { url: opts.url } : {}),
+      groupId: old?.groupId ?? opts?.groupId,
+      pinned: old?.pinned ?? opts?.pinned ?? false,
     };
-    if (opts?.source !== 'online') {
-      await idbPut('books', record);
-      await saveHandle(id, handle);
-      setBooks((prev) =>
-        [record, ...prev.filter((b) => b.id !== id)].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt),
-      );
-    }
+    await idbPut('books', record);
+    if (opts?.source === undefined || opts?.source === 'local') await saveHandle(id, handle);
+    setBooks((prev) =>
+      [record, ...prev.filter((b) => b.id !== id)].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt),
+    );
     setView({ kind: 'reader', book: record, file, chapters, encoding: enc });
     setBusy(null);
     },
@@ -208,7 +222,7 @@ export default function App() {
         const file = new File([await res.blob()], ob.fileName, { lastModified: 0 });
         await openTxt(file, null, undefined, {
           id: lanBookId(ob.fileName, file.size),
-          source: 'online',
+          source: 'lan',
           url,
         });
       } catch (err) {
@@ -224,6 +238,26 @@ export default function App() {
     async (book: BookRecord) => {
       if (book.source === 'online') {
         await openRemoteBook({ title: book.name, fileName: book.fileName, size: book.size });
+        return;
+      }
+      if (book.source === 'lan' && book.url) {
+        setBusy('正在从电脑加载书籍…');
+        try {
+          const res = await fetch(book.url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const file = new File([await res.blob()], book.fileName, { lastModified: 0 });
+          await openTxt(file, null, book.encoding ?? undefined, {
+            id: book.id,
+            source: 'lan',
+            url: book.url,
+            groupId: book.groupId,
+            pinned: book.pinned,
+          });
+        } catch (err) {
+          console.warn('局域网书籍重新加载失败', err);
+          setBusy(null);
+          alert('局域网书籍加载失败，请确认电脑端服务正在运行。');
+        }
         return;
       }
       setBusy('正在打开…');
@@ -260,23 +294,161 @@ export default function App() {
     [view],
   );
 
-  const removeBook = useCallback(
-    async (book: BookRecord) => {
-      if (!window.confirm(`确定从书架移除《${book.name}》吗？`)) return;
-      await idbDelete('books', book.id);
-      await idbDelete('progress', book.id);
-      await idbDelete('handles', book.id);
-      setBooks((prev) => prev.filter((b) => b.id !== book.id));
-      if (view.kind === 'reader' && view.book.id === book.id) setView({ kind: 'shelf' });
-    },
-    [view],
-  );
-
   const toggleFavorite = useCallback(async (book: BookRecord) => {
     const updated = { ...book, isFavorite: !book.isFavorite };
     await idbPut('books', updated);
     setBooks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
   }, []);
+
+  const ensureBook = useCallback(
+    async (rec: BookRecord) => {
+      const exists = books.some((b) => b.id === rec.id);
+      await idbPut('books', rec);
+      setBooks((prev) =>
+        exists
+          ? prev.map((b) => (b.id === rec.id ? rec : b))
+          : [rec, ...prev].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt),
+      );
+    },
+    [books],
+  );
+
+  const addOnlineToShelf = useCallback(
+    async (ob: OnlineBook) => {
+      const id = onlineBookId(ob.fileName, ob.size);
+      if (books.some((b) => b.id === id)) return;
+      await ensureBook({
+        id,
+        name: ob.title,
+        fileName: ob.fileName,
+        size: ob.size,
+        lastModified: 0,
+        lastOpenedAt: 0,
+        isFavorite: false,
+        encoding: null,
+        chapterCount: null,
+        source: 'online',
+        url: `books/${encodeURIComponent(ob.fileName)}`,
+        chaptersUrl: `books/${encodeURIComponent(ob.title)}/chapters/`,
+        pinned: false,
+      });
+    },
+    [books, ensureBook],
+  );
+
+  const addLanToShelf = useCallback(
+    async (ob: OnlineBook) => {
+      const id = lanBookId(ob.fileName, ob.size);
+      if (books.some((b) => b.id === id)) return;
+      await ensureBook({
+        id,
+        name: ob.title,
+        fileName: ob.fileName,
+        size: ob.size,
+        lastModified: 0,
+        lastOpenedAt: 0,
+        isFavorite: false,
+        encoding: null,
+        chapterCount: null,
+        source: 'lan',
+        url: `lan-books/${encodeURIComponent(ob.fileName)}`,
+        pinned: false,
+      });
+    },
+    [books, ensureBook],
+  );
+
+  const createGroup = useCallback(
+    async (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const order = groups.reduce((m, g) => Math.max(m, g.order), 0) + 1;
+      const group: BookGroup = {
+        id: `g_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+        name: trimmed,
+        order,
+        createdAt: Date.now(),
+      };
+      await idbPut('groups', group);
+      setGroups((prev) => [...prev, group].sort((a, b) => a.order - b.order));
+    },
+    [groups],
+  );
+
+  const renameGroup = useCallback(
+    async (id: string, name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const target = groups.find((g) => g.id === id);
+      if (!target) return;
+      const next = { ...target, name: trimmed };
+      await idbPut('groups', next);
+      setGroups((prev) => prev.map((g) => (g.id === id ? next : g)));
+    },
+    [groups],
+  );
+
+  const deleteGroup = useCallback(
+    async (id: string) => {
+      const next = groups.filter((g) => g.id !== id);
+      const affected = books.filter((b) => b.groupId === id);
+      for (const b of affected) {
+        const rec = { ...b, groupId: undefined };
+        await idbPut('books', rec);
+      }
+      await idbDelete('groups', id);
+      setGroups(next);
+      setBooks((prev) => prev.map((b) => (b.groupId === id ? { ...b, groupId: undefined } : b)));
+    },
+    [groups, books],
+  );
+
+  const moveGroup = useCallback(
+    async (id: string, dir: -1 | 1) => {
+      const sorted = [...groups].sort((a, b) => a.order - b.order);
+      const idx = sorted.findIndex((g) => g.id === id);
+      const j = idx + dir;
+      if (idx < 0 || j < 0 || j >= sorted.length) return;
+      [sorted[idx], sorted[j]] = [sorted[j], sorted[idx]];
+      sorted.forEach((g, i) => {
+        g.order = i + 1;
+      });
+      for (const g of sorted) await idbPut('groups', g);
+      setGroups(sorted);
+    },
+    [groups],
+  );
+
+  const removeFromShelf = useCallback(async (ids: string[]) => {
+    for (const id of ids) {
+      await idbDelete('books', id);
+      await idbDelete('progress', id);
+      await idbDelete('handles', id);
+    }
+    setBooks((prev) => prev.filter((b) => !ids.includes(b.id)));
+  }, []);
+
+  const moveBooksToGroup = useCallback(
+    async (ids: string[], groupId: string | null) => {
+      const next = books.map((b) => (ids.includes(b.id) ? { ...b, groupId: groupId ?? undefined } : b));
+      for (const b of next) {
+        if (ids.includes(b.id)) await idbPut('books', b);
+      }
+      setBooks(next);
+    },
+    [books],
+  );
+
+  const setBooksPinned = useCallback(
+    async (ids: string[], pinned: boolean) => {
+      const next = books.map((b) => (ids.includes(b.id) ? { ...b, pinned } : b));
+      for (const b of next) {
+        if (ids.includes(b.id)) await idbPut('books', b);
+      }
+      setBooks(next);
+    },
+    [books],
+  );
 
   const updateSettings = useCallback((next: ReaderSettings) => {
     setSettings(next);
@@ -334,18 +506,27 @@ export default function App() {
       {view.kind === 'shelf' ? (
         <Bookshelf
           books={books}
+          groups={groups}
           onlineBooks={onlineBooks}
           lanBooks={lanBooks}
           lanAvailable={lanAvailable}
           shelfTheme={shelfTheme}
           onShelfThemeChange={updateShelfTheme}
           onImport={() => void onImportClick()}
-          onOpen={(b) => void reopenBook(b)}
+          onRefreshOnlineBooks={() => refreshOnlineBooks()}
+          onOpenBook={(b) => void reopenBook(b)}
           onOpenOnline={(b) => void openOnlineBook(b)}
           onOpenLan={(b) => void openLanBook(b)}
-          onRefreshOnlineBooks={() => refreshOnlineBooks()}
-          onRemove={(b) => void removeBook(b)}
+          onAddOnline={(b) => addOnlineToShelf(b)}
+          onAddLan={(b) => addLanToShelf(b)}
           onToggleFavorite={(b) => void toggleFavorite(b)}
+          onCreateGroup={(name) => createGroup(name)}
+          onRenameGroup={(id, name) => renameGroup(id, name)}
+          onDeleteGroup={(id) => deleteGroup(id)}
+          onMoveGroup={(id, dir) => moveGroup(id, dir)}
+          onRemoveFromShelf={(ids) => removeFromShelf(ids)}
+          onMoveBooksToGroup={(ids, gid) => moveBooksToGroup(ids, gid)}
+          onSetPinned={(ids, pinned) => setBooksPinned(ids, pinned)}
         />
       ) : (
         <Reader

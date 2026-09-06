@@ -1,24 +1,35 @@
-import { useEffect, useState } from 'react';
-import type { BookRecord, OnlineBook, Progress, ThemeName } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import type { BookGroup, BookRecord, OnlineBook, Progress, ThemeName } from '../types';
 import { idbAll } from '../lib/storage';
 import { ENCODING_OPTIONS } from '../lib/encoding';
 import { lanBookId, onlineBookId } from '../lib/fileOpen';
 import { THEME_OPTIONS, THEME_SWATCHES } from '../lib/themes';
 
+const COVER_COLORS = ['#b7d3a8', '#c9b8dc', '#f2d0a4', '#a8c8dc', '#dcb0b0', '#bcd3d8', '#e4c8a8', '#c0c8d8'];
+
 interface Props {
   books: BookRecord[];
+  groups: BookGroup[];
   onlineBooks: OnlineBook[];
   lanBooks: OnlineBook[];
   lanAvailable: boolean;
   shelfTheme: ThemeName;
   onShelfThemeChange: (theme: ThemeName) => void;
   onImport: () => void;
-  onOpen: (book: BookRecord) => void;
+  onRefreshOnlineBooks: () => Promise<void>;
+  onOpenBook: (book: BookRecord) => void;
   onOpenOnline: (book: OnlineBook) => void;
   onOpenLan: (book: OnlineBook) => void;
-  onRefreshOnlineBooks: () => Promise<void>;
-  onRemove: (book: BookRecord) => void;
+  onAddOnline: (book: OnlineBook) => Promise<void>;
+  onAddLan: (book: OnlineBook) => Promise<void>;
   onToggleFavorite: (book: BookRecord) => void;
+  onCreateGroup: (name: string) => Promise<void>;
+  onRenameGroup: (id: string, name: string) => Promise<void>;
+  onDeleteGroup: (id: string) => Promise<void>;
+  onMoveGroup: (id: string, dir: -1 | 1) => Promise<void>;
+  onRemoveFromShelf: (ids: string[]) => Promise<void>;
+  onMoveBooksToGroup: (ids: string[], groupId: string | null) => Promise<void>;
+  onSetPinned: (ids: string[], pinned: boolean) => Promise<void>;
 }
 
 function formatSize(size: number): string {
@@ -41,42 +52,79 @@ function encodingName(label: string | null): string {
   return ENCODING_OPTIONS.find((o) => o.label === label)?.name.split('（')[0] ?? label;
 }
 
-interface CardProps {
-  book: BookRecord;
-  progress?: Progress;
-  onOpen: () => void;
-  onRemove: () => void;
-  onToggleFavorite: () => void;
+function coverColor(name: string): string {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.codePointAt(0)!) % 997;
+  return COVER_COLORS[h % COVER_COLORS.length];
 }
 
-function BookCard({ book, progress, onOpen, onRemove, onToggleFavorite }: CardProps) {
+function coverText(name: string): string {
+  return name.replace(/《|》/g, '').slice(0, 2) || '书';
+}
+
+function sourceLabel(source: BookRecord['source']): string {
+  if (source === 'online') return '在线';
+  if (source === 'lan') return '局域网';
+  return '本地';
+}
+
+function sortBooks(list: BookRecord[]): BookRecord[] {
+  return [...list].sort((a, b) => {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+    return b.lastOpenedAt - a.lastOpenedAt || a.name.localeCompare(b.name, 'zh');
+  });
+}
+
+function BookRow({
+  book,
+  progress,
+  manage,
+  checked,
+  onToggleCheck,
+  onOpen,
+  onFavorite,
+}: {
+  book: BookRecord;
+  progress?: Progress;
+  manage: boolean;
+  checked: boolean;
+  onToggleCheck: () => void;
+  onOpen: () => void;
+  onFavorite: () => void;
+}) {
   const progressText =
     book.chapterCount != null
       ? progress
-        ? `已读 第 ${progress.chapterIndex + 1} / ${book.chapterCount} 章`
+        ? `已读至第 ${progress.chapterIndex + 1}/${book.chapterCount} 章`
         : `共 ${book.chapterCount} 章`
-      : '章节识别中…';
-
+      : '';
   return (
     <div className="book-card">
+      {manage && (
+        <input type="checkbox" checked={checked} onChange={onToggleCheck} style={{ width: 20, height: 20 }} />
+      )}
+      <div className="cover-tile" style={{ background: coverColor(book.name) }} onClick={manage ? onToggleCheck : onOpen}>
+        {coverText(book.name)}
+      </div>
       <div className="book-main" onClick={onOpen}>
-        <div className="book-name">{book.name}</div>
+        <div className="book-name">
+          {book.pinned ? '📌 ' : ''}
+          {book.name}
+        </div>
         <div className="book-meta">
-          {progressText} · {formatSize(book.size)} · {encodingName(book.encoding)} · {formatTime(book.lastOpenedAt)}
+          {sourceLabel(book.source)} · {formatSize(book.size)} · {encodingName(book.encoding)}
+          {progressText ? ` · ${progressText}` : ''} · {formatTime(book.lastOpenedAt)}
         </div>
       </div>
       <button
         className={`star-btn${book.isFavorite ? ' active' : ''}`}
         title={book.isFavorite ? '取消收藏' : '收藏'}
-        onClick={onToggleFavorite}
+        onClick={onFavorite}
       >
         {book.isFavorite ? '★' : '☆'}
       </button>
       <button className="btn" onClick={onOpen}>
         阅读
-      </button>
-      <button className="btn" onClick={onRemove}>
-        移除
       </button>
     </div>
   );
@@ -84,23 +132,35 @@ function BookCard({ book, progress, onOpen, onRemove, onToggleFavorite }: CardPr
 
 export default function Bookshelf({
   books,
+  groups,
   onlineBooks,
   lanBooks,
   lanAvailable,
   shelfTheme,
   onShelfThemeChange,
   onImport,
-  onOpen,
+  onRefreshOnlineBooks,
+  onOpenBook,
   onOpenOnline,
   onOpenLan,
-  onRefreshOnlineBooks,
-  onRemove,
+  onAddOnline,
+  onAddLan,
   onToggleFavorite,
+  onCreateGroup,
+  onRenameGroup,
+  onDeleteGroup,
+  onMoveGroup,
+  onRemoveFromShelf,
+  onMoveBooksToGroup,
+  onSetPinned,
 }: Props) {
   const [progressMap, setProgressMap] = useState<Record<string, Progress>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [updated, setUpdated] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [manage, setManage] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -115,9 +175,6 @@ export default function Bookshelf({
     };
   }, [books]);
 
-  const favorites = books.filter((b) => b.isFavorite);
-  const recent = books.slice(0, 8);
-
   const handleRefresh = async () => {
     setRefreshing(true);
     setUpdated(false);
@@ -127,12 +184,151 @@ export default function Bookshelf({
     window.setTimeout(() => setUpdated(false), 2000);
   };
 
+  const createFolder = () => {
+    const name = window.prompt('输入文件夹名称：');
+    if (name?.trim()) void onCreateGroup(name);
+  };
+
+  const renameFolder = (g: BookGroup) => {
+    const name = window.prompt('重命名文件夹：', g.name);
+    if (name?.trim() && name.trim() !== g.name) void onRenameGroup(g.id, name);
+  };
+
+  const removeFolder = (g: BookGroup) => {
+    if (window.confirm(`删除文件夹「${g.name}」？文件夹内的小说仍保留在书架中。`)) void onDeleteGroup(g.id);
+  };
+
+  const shelfIds = useMemo(() => new Set(books.map((b) => b.id)), [books]);
+
+  const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null;
+  const showingAll = activeGroupId === '__all__';
+  const currentBooks = useMemo(() => {
+    const list = showingAll ? books : activeGroup ? books.filter((b) => b.groupId === activeGroup.id) : [];
+    return sortBooks(list);
+  }, [books, activeGroup, showingAll]);
+
+  const groupBooks = (gid: string) => sortBooks(books.filter((b) => b.groupId === gid));
+  const inDetail = activeGroup !== null || showingAll;
+
+  const toggleChecked = (id: string) => {
+    setCheckedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const exitManage = () => {
+    setManage(false);
+    setCheckedIds([]);
+  };
+
+  const moveTo = (gid: string) => {
+    if (!checkedIds.length) return;
+    void onMoveBooksToGroup(checkedIds, gid === '' ? null : gid);
+    exitManage();
+  };
+
+  const doRemove = () => {
+    if (!checkedIds.length) return;
+    if (window.confirm(`将 ${checkedIds.length} 本小说移出书架？（不会删除电脑上的文件）`)) {
+      void onRemoveFromShelf(checkedIds);
+      exitManage();
+    }
+  };
+
+  const doPin = (pinned: boolean) => {
+    if (!checkedIds.length) return;
+    void onSetPinned(checkedIds, pinned);
+    exitManage();
+  };
+
+  // ---------- 文件夹详情 / 全部书籍管理 ----------
+  if (inDetail) {
+    const title = showingAll ? '全部书籍' : activeGroup!.name;
+    return (
+      <div className="shelf">
+        <header className="shelf-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button className="btn" onClick={() => setActiveGroupId(null)}>
+              ← 书架
+            </button>
+            <div>
+              <h1 className="shelf-title" style={{ fontSize: 18 }}>
+                {title}
+              </h1>
+              <div className="shelf-sub">共 {currentBooks.length} 本 · 滑动浏览 · 点击即可阅读</div>
+            </div>
+          </div>
+          <button className={manage ? 'btn primary' : 'btn'} onClick={() => (manage ? exitManage() : setManage(true))}>
+            {manage ? '完成' : '管理'}
+          </button>
+        </header>
+
+        {currentBooks.length === 0 && (
+          <div className="empty-state">
+            <p>{showingAll ? '书架还没有小说' : '这个文件夹还是空的'}</p>
+          </div>
+        )}
+
+        {currentBooks.map((b) => (
+          <BookRow
+            key={b.id}
+            book={b}
+            progress={progressMap[b.id]}
+            manage={manage}
+            checked={checkedIds.includes(b.id)}
+            onToggleCheck={() => toggleChecked(b.id)}
+            onOpen={() => onOpenBook(b)}
+            onFavorite={() => onToggleFavorite(b)}
+          />
+        ))}
+
+        {manage && (
+          <div className="batch-bar">
+            <input
+              type="checkbox"
+              checked={checkedIds.length === currentBooks.length && currentBooks.length > 0}
+              onChange={() => {
+                if (checkedIds.length === currentBooks.length) setCheckedIds([]);
+                else setCheckedIds(currentBooks.map((b) => b.id));
+              }}
+              style={{ width: 18, height: 18 }}
+            />
+            <span>{checkedIds.length} 本</span>
+            <button className="btn" disabled={!checkedIds.length} onClick={() => doPin(true)}>
+              置顶
+            </button>
+            <button className="btn" disabled={!checkedIds.length} onClick={() => doPin(false)}>
+              取消置顶
+            </button>
+            <select
+              disabled={!checkedIds.length}
+              value=""
+              onChange={(e) => {
+                if (e.target.value !== '') moveTo(e.target.value);
+              }}
+            >
+              <option value="">移动到…</option>
+              <option value="">未分组</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <button className="btn" disabled={!checkedIds.length} onClick={doRemove}>
+              移除书架
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---------- 书架首页：文件夹卡片 + 快捷列表 ----------
   return (
     <div className="shelf">
       <header className="shelf-header">
         <div>
           <h1 className="shelf-title">本地小说阅读器</h1>
-          <div className="shelf-sub">纯本地运行 · 文件不上传 · 起点风格阅读体验</div>
+          <div className="shelf-sub">文件夹管理小说 · 小说负责阅读</div>
         </div>
         <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
           <button className="btn" onClick={() => setThemeOpen((o) => !o)}>
@@ -162,23 +358,89 @@ export default function Bookshelf({
       </header>
 
       <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>在线书库（{onlineBooks.length}）· 任意设备联网即读</span>
+        <span>我的文件夹（{groups.length}）</span>
+        <button className="btn" onClick={createFolder}>
+          新建文件夹
+        </button>
+      </div>
+
+      {groups.length === 0 ? (
+        <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
+          还没有文件夹。点“新建文件夹”创建，把小说按类型放进去（如：玄幻 / 科幻 / 待读）。
+        </div>
+      ) : (
+        <div className="folder-grid">
+          {groups.map((g, idx) => {
+            const gb = groupBooks(g.id);
+            const preview = gb.slice(0, 4);
+            return (
+              <div className="folder-card" key={g.id}>
+                <div className="folder-main" onClick={() => setActiveGroupId(g.id)}>
+                  <div className="folder-covers">
+                    {preview.map((b) => (
+                      <div key={b.id} className="folder-cover" style={{ background: coverColor(b.name) }}>
+                        {coverText(b.name)}
+                      </div>
+                    ))}
+                    {preview.length < 4 &&
+                      Array.from({ length: 4 - preview.length }).map((_, i) => (
+                        <div key={`e${i}`} className="folder-cover empty" />
+                      ))}
+                  </div>
+                  <div className="folder-name">{g.name}</div>
+                  <div className="folder-count">{gb.length} 本</div>
+                </div>
+                <div className="folder-actions">
+                  <button className="icon-btn" title="上移" onClick={() => void onMoveGroup(g.id, -1)} disabled={idx === 0}>
+                    ↑
+                  </button>
+                  <button
+                    className="icon-btn"
+                    title="下移"
+                    onClick={() => void onMoveGroup(g.id, 1)}
+                    disabled={idx === groups.length - 1}
+                  >
+                    ↓
+                  </button>
+                  <button className="icon-btn" title="重命名" onClick={() => renameFolder(g)}>
+                    改
+                  </button>
+                  <button className="icon-btn" title="删除" onClick={() => removeFolder(g)}>
+                    删
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="section-title">
+        <button className="btn" onClick={() => setActiveGroupId('__all__')}>
+          全部书籍（{books.length}）→ 管理
+        </button>
+      </div>
+
+      <div className="section-title">在线书库（{onlineBooks.length}）· 任意设备联网即读</div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <button className="btn" onClick={() => void handleRefresh()} disabled={refreshing}>
           {refreshing ? '更新中…' : updated ? '已更新' : '更新在线书库'}
         </button>
       </div>
       {onlineBooks.length > 0 ? (
         onlineBooks.map((b) => {
-          const progress = progressMap[onlineBookId(b.fileName, b.size)];
+          const added = shelfIds.has(onlineBookId(b.fileName, b.size));
           return (
             <div className="book-card" key={b.fileName}>
               <div className="book-main" onClick={() => onOpenOnline(b)}>
                 <div className="book-name">{b.title}</div>
-                <div className="book-meta">
-                  在线 · {formatSize(b.size)}
-                  {progress ? ` · 已读至第 ${progress.chapterIndex + 1} 章` : ' · 点击在线阅读'}
-                </div>
+                <div className="book-meta">在线 · {formatSize(b.size)} · 点击在线阅读</div>
               </div>
+              {!added && (
+                <button className="btn" onClick={() => void onAddOnline(b)}>
+                  加入书架
+                </button>
+              )}
               <button className="btn primary" onClick={() => onOpenOnline(b)}>
                 阅读
               </button>
@@ -193,19 +455,21 @@ export default function Bookshelf({
 
       {lanAvailable && (
         <>
-          <div className="section-title">局域网书库（{lanBooks.length}）· 本机电脑共享，需同一网络</div>
+          <div className="section-title">局域网书库（{lanBooks.length}）· 本机电脑共享</div>
           {lanBooks.length > 0 ? (
             lanBooks.map((b) => {
-              const progress = progressMap[lanBookId(b.fileName, b.size)];
+              const added = shelfIds.has(lanBookId(b.fileName, b.size));
               return (
                 <div className="book-card" key={b.fileName}>
                   <div className="book-main" onClick={() => onOpenLan(b)}>
                     <div className="book-name">{b.title}</div>
-                    <div className="book-meta">
-                      局域网 · {formatSize(b.size)}
-                      {progress ? ` · 已读至第 ${progress.chapterIndex + 1} 章` : ' · 点击阅读'}
-                    </div>
+                    <div className="book-meta">局域网 · {formatSize(b.size)} · 点击阅读</div>
                   </div>
+                  {!added && (
+                    <button className="btn" onClick={() => void onAddLan(b)}>
+                      加入书架
+                    </button>
+                  )}
                   <button className="btn primary" onClick={() => onOpenLan(b)}>
                     阅读
                   </button>
@@ -220,54 +484,24 @@ export default function Bookshelf({
         </>
       )}
 
-      {books.length === 0 ? (
-        <div className="empty-state">
-          <div style={{ fontSize: 40 }}>📖</div>
-          <p>书架还是空的</p>
-          <p style={{ fontSize: 13 }}>点击上方按钮选择 TXT 小说，或直接把文件拖进页面</p>
-          <button className="btn primary" onClick={onImport}>
-            打开 TXT 文件
-          </button>
-        </div>
-      ) : (
+      {books.length > 0 && (
         <>
-          {favorites.length > 0 && (
-            <>
-              <div className="section-title">收藏</div>
-              {favorites.map((b) => (
-                <BookCard
-                  key={b.id}
-                  book={b}
-                  progress={progressMap[b.id]}
-                  onOpen={() => onOpen(b)}
-                  onRemove={() => onRemove(b)}
-                  onToggleFavorite={() => onToggleFavorite(b)}
-                />
-              ))}
-            </>
-          )}
           <div className="section-title">最近阅读</div>
-          {recent.map((b) => (
-            <BookCard
-              key={b.id}
-              book={b}
-              progress={progressMap[b.id]}
-              onOpen={() => onOpen(b)}
-              onRemove={() => onRemove(b)}
-              onToggleFavorite={() => onToggleFavorite(b)}
-            />
-          ))}
-          <div className="section-title">全部书籍（{books.length}）</div>
-          {books.map((b) => (
-            <BookCard
-              key={b.id}
-              book={b}
-              progress={progressMap[b.id]}
-              onOpen={() => onOpen(b)}
-              onRemove={() => onRemove(b)}
-              onToggleFavorite={() => onToggleFavorite(b)}
-            />
-          ))}
+          {sortBooks(books)
+            .filter((b) => b.lastOpenedAt > 0)
+            .slice(0, 5)
+            .map((b) => (
+              <BookRow
+                key={b.id}
+                book={b}
+                progress={progressMap[b.id]}
+                manage={false}
+                checked={false}
+                onToggleCheck={() => undefined}
+                onOpen={() => onOpenBook(b)}
+                onFavorite={() => onToggleFavorite(b)}
+              />
+            ))}
         </>
       )}
     </div>
