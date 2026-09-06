@@ -33,7 +33,7 @@ const MIME = {
   '.nojekyll': 'text/plain',
 };
 
-const DEFAULT_DATA = { groups: [], assignments: {} };
+const DEFAULT_DATA = { groups: [], assignments: {}, hidden: [] };
 
 async function readData() {
   try {
@@ -42,6 +42,7 @@ async function readData() {
     return {
       groups: Array.isArray(d?.groups) ? d.groups : [],
       assignments: d?.assignments && typeof d.assignments === 'object' ? d.assignments : {},
+      hidden: Array.isArray(d?.hidden) ? d.hidden : [],
     };
   } catch {
     return { ...DEFAULT_DATA };
@@ -233,6 +234,7 @@ const server = createServer(async (req, res) => {
           const data = {
             groups: Array.isArray(d?.groups) ? d.groups : [],
             assignments: d?.assignments && typeof d.assignments === 'object' ? d.assignments : {},
+            hidden: Array.isArray(d?.hidden) ? d.hidden : [],
           };
           await writeFile(dataPath, JSON.stringify(data, null, 2) + '\n', 'utf-8');
           writeJson(res, { ok: true });

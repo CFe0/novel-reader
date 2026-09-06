@@ -42,6 +42,7 @@ export default function App() {
   const [lanBooks, setLanBooks] = useState<OnlineBook[]>([]);
   const [lanAvailable, setLanAvailable] = useState(false);
   const [groups, setGroups] = useState<BookGroup[]>([]);
+  const [hiddenLan, setHiddenLan] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<ReaderSettings>(() => loadSettings());
   const [shelfTheme, setShelfTheme] = useState<ThemeName>(() => loadShelfTheme());
   const [view, setView] = useState<View>({ kind: 'shelf' });
@@ -53,8 +54,10 @@ export default function App() {
   const chapterCacheRef = useRef(new Map<string, Chapter[]>());
   const booksRef = useRef(books);
   const groupsRef = useRef(groups);
+  const hiddenLanRef = useRef(hiddenLan);
   booksRef.current = books;
   groupsRef.current = groups;
+  hiddenLanRef.current = hiddenLan;
 
   useEffect(() => {
     document.documentElement.dataset.theme = view.kind === 'shelf' ? shelfTheme : settings.theme;
@@ -106,15 +109,22 @@ export default function App() {
     let alive = true;
     void (async () => {
       try {
+        // 先取共享数据（分组/隐藏），再取书单
+        const sharedRes = await fetch(`${LAN_BASE}/lan-data.json?t=${Date.now()}`);
+        const shared = sharedRes.ok ? ((await sharedRes.json()) as { groups?: BookGroup[]; assignments?: Record<string, string>; hidden?: string[] }) : {};
         const res = await fetch(`${LAN_BASE}/lan-books/index.json?t=${Date.now()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { books?: OnlineBook[] };
         if (!alive) return;
-        setLanBooks(data.books ?? []);
+        const hidden = new Set(shared.hidden ?? []);
+        hiddenLanRef.current = hidden;
+        setHiddenLan(hidden);
+        const visible = (data.books ?? []).filter((b) => !hidden.has(lanBookId(b.fileName, b.size)));
+        setLanBooks(visible);
         setLanAvailable(true);
         // 为局域网书籍建立书架记录（用于文件夹归属，保留已有分组）
         const created: BookRecord[] = [];
-        for (const ob of data.books ?? []) {
+        for (const ob of visible) {
           const id = lanBookId(ob.fileName, ob.size);
           const existing = await idbGet<BookRecord>('books', id);
           if (!existing) {
@@ -139,34 +149,26 @@ export default function App() {
         if (created.length && alive) {
           setBooks((prev) => [...created.filter((r) => !prev.some((b) => b.id === r.id)), ...prev]);
         }
-        // 拉取服务端共享分组数据并应用到本机记录
-        try {
-          const dr = await fetch(`${LAN_BASE}/lan-data.json?t=${Date.now()}`);
-          if (dr.ok) {
-            const shared = await dr.json();
-            const map = shared.assignments ?? {};
-            const all = await idbAll<BookRecord>('books');
-            let changed = false;
-            for (const rec of all) {
-              if (rec.source !== 'lan') continue;
-              const target = typeof map[rec.id] === 'string' ? map[rec.id] : undefined;
-              if ((rec.groupId ?? undefined) !== target) {
-                rec.groupId = target;
-                await idbPut('books', rec);
-                changed = true;
-              }
-            }
-            if (Array.isArray(shared.groups) && shared.groups.length) {
-              setGroups([...shared.groups].sort((a: BookGroup, b: BookGroup) => a.order - b.order));
-            }
-            if (changed && alive) {
-              const list = await idbAll<BookRecord>('books');
-              list.sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
-              if (alive) setBooks(list);
-            }
+        // 应用共享分组与隐藏到本机记录
+        const map = shared.assignments ?? {};
+        const all = await idbAll<BookRecord>('books');
+        let changed = false;
+        for (const rec of all) {
+          if (rec.source !== 'lan') continue;
+          const target = typeof map[rec.id] === 'string' ? map[rec.id] : undefined;
+          if ((rec.groupId ?? undefined) !== target) {
+            rec.groupId = target;
+            await idbPut('books', rec);
+            changed = true;
           }
-        } catch {
-          // 共享数据不可用时忽略（非局域网服务环境）
+        }
+        if (Array.isArray(shared.groups) && shared.groups.length) {
+          setGroups([...shared.groups].sort((a: BookGroup, b: BookGroup) => a.order - b.order));
+        }
+        if (changed && alive) {
+          const list = await idbAll<BookRecord>('books');
+          list.sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
+          if (alive) setBooks(list);
         }
       } catch {
         if (alive) setLanAvailable(false);
@@ -366,10 +368,11 @@ export default function App() {
   );
 
   const syncLanData = useCallback(
-    async (g?: BookGroup[], b?: BookRecord[]) => {
+    async (g?: BookGroup[], b?: BookRecord[], hidden?: Set<string>) => {
       if (!lanAvailable) return;
       const groupsNow = g ?? groupsRef.current;
       const booksNow = b ?? booksRef.current;
+      const hiddenNow = hidden ?? hiddenLanRef.current;
       const assignments: Record<string, string> = {};
       for (const x of booksNow) {
         if (x.source === 'lan' && x.groupId) assignments[x.id] = x.groupId;
@@ -378,13 +381,37 @@ export default function App() {
         await fetch(`${LAN_BASE}/lan-data.json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groups: groupsNow, assignments }),
+          body: JSON.stringify({ groups: groupsNow, assignments, hidden: [...hiddenNow] }),
         });
       } catch (err) {
         console.warn('同步局域网分组失败', err);
       }
     },
     [lanAvailable],
+  );
+
+  const removeLanBooks = useCallback(
+    async (ids: string[]) => {
+      if (!ids.length) return;
+      const next = new Set(hiddenLan);
+      for (const id of ids) next.add(id);
+      hiddenLanRef.current = next;
+      setHiddenLan(next);
+      void syncLanData(undefined, undefined, next);
+    },
+    [hiddenLan, syncLanData],
+  );
+
+  const restoreLanBooks = useCallback(
+    async (ids: string[]) => {
+      if (!ids.length) return;
+      const next = new Set(hiddenLan);
+      for (const id of ids) next.delete(id);
+      hiddenLanRef.current = next;
+      setHiddenLan(next);
+      void syncLanData(undefined, undefined, next);
+    },
+    [hiddenLan, syncLanData],
   );
 
   const createGroup = useCallback(
@@ -597,6 +624,10 @@ export default function App() {
           onDeleteGroup={(id) => deleteGroup(id)}
           onMoveGroup={(id, dir) => moveGroup(id, dir)}
           onMoveBooksToGroup={(ids, gid) => moveBooksToGroup(ids, gid)}
+          onRemoveLanBooks={(ids) => removeLanBooks(ids)}
+          onRestoreLanBooks={(ids) => restoreLanBooks(ids)}
+          lanHiddenCount={hiddenLan.size}
+          lanHiddenIds={[...hiddenLan]}
         />
       ) : (
         <Reader

@@ -14,6 +14,8 @@ interface Props {
   onlineBooks: OnlineBook[];
   lanBooks: OnlineBook[];
   lanAvailable: boolean;
+  lanHiddenCount: number;
+  lanHiddenIds: string[];
   shelfTheme: ThemeName;
   onShelfThemeChange: (theme: ThemeName) => void;
   onOpenLocal: (book: BookRecord) => void;
@@ -28,6 +30,8 @@ interface Props {
   onDeleteGroup: (id: string) => Promise<void>;
   onMoveGroup: (id: string, dir: -1 | 1) => Promise<void>;
   onMoveBooksToGroup: (ids: string[], groupId: string | null) => Promise<void>;
+  onRemoveLanBooks: (ids: string[]) => Promise<void>;
+  onRestoreLanBooks: (ids: string[]) => Promise<void>;
 }
 
 function formatSize(size: number): string {
@@ -98,6 +102,8 @@ export default function Bookshelf({
   onlineBooks,
   lanBooks,
   lanAvailable,
+  lanHiddenCount,
+  lanHiddenIds,
   shelfTheme,
   onShelfThemeChange,
   onOpenLocal,
@@ -112,6 +118,8 @@ export default function Bookshelf({
   onDeleteGroup,
   onMoveGroup,
   onMoveBooksToGroup,
+  onRemoveLanBooks,
+  onRestoreLanBooks,
 }: Props) {
   const [tab, setTab] = useState<Tab>(() => {
     const saved = localStorage.getItem(TAB_KEY) as Tab | null;
@@ -406,12 +414,20 @@ export default function Bookshelf({
                 progress={progressMap[b.id]}
                 onClick={() => onOpenLan({ title: b.name, fileName: b.fileName, size: b.size })}
                 actions={
-                  <button
-                    className="btn pc-tool"
-                    onClick={() => void onMoveBooksToGroup([b.id], null)}
-                  >
-                    移出
-                  </button>
+                  <div className="row-actions pc-tool">
+                    <button className="btn" onClick={() => void onMoveBooksToGroup([b.id], null)}>
+                      移出分组
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        if (window.confirm(`将《${b.name}》移出书架？\n不会删除电脑上的文件，随时可以恢复。`))
+                          void onRemoveLanBooks([b.id]);
+                      }}
+                    >
+                      移除书架
+                    </button>
+                  </div>
                 }
               />
             ))
@@ -441,6 +457,17 @@ export default function Bookshelf({
                 progress={progressMap[b.id]}
                 onClick={() => onOpenLan({ title: b.name, fileName: b.fileName, size: b.size })}
                 meta="局域网 · 未分组"
+                actions={
+                  <button
+                    className="btn pc-tool"
+                    onClick={() => {
+                      if (window.confirm(`将《${b.name}》移出书架？\n不会删除电脑上的文件，随时可以恢复。`))
+                        void onRemoveLanBooks([b.id]);
+                    }}
+                  >
+                    移除书架
+                  </button>
+                }
               />
             ))
           ))}
@@ -460,6 +487,34 @@ export default function Bookshelf({
       <>
         <div className="tab-toolbar">
           <span>电脑共享 · 共 {lanBooks.length} 本</span>
+          {lanHiddenCount > 0 && (
+            <button
+              className="btn"
+              onClick={() => {
+                if (window.confirm(`恢复之前移除的 ${lanHiddenCount} 本书到书架？`)) {
+                  void onRestoreLanBooks(lanHiddenIds);
+                }
+              }}
+            >
+              恢复已移除（{lanHiddenCount}）
+            </button>
+          )}
+          {lanBooks.length > 0 && (
+            <button
+              className="btn pc-tool"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `将书库中全部 ${lanBooks.length} 本移出书架？\n不会删除电脑上的文件，之后可点“恢复已移除”找回。`,
+                  )
+                ) {
+                  void onRemoveLanBooks(lanBooks.map((b) => `lan|${b.fileName}|${b.size}`));
+                }
+              }}
+            >
+              全部移除书架
+            </button>
+          )}
           <button className="btn pc-tool" onClick={openCreate}>
             新建文件夹
           </button>

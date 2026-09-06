@@ -711,6 +711,12 @@ button {
   justify-content: flex-start;
 }
 
+.lan-group-block .book-card .row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 /* 分页 */
 .pagination {
   display: flex;
