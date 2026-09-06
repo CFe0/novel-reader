@@ -837,6 +837,14 @@ button {
 }
 
 @media (max-width: 768px) {
+  /* 手机端纯阅读：隐藏管理/收藏类控件 */
+  .folder-actions,
+  .pc-tool,
+  .manage-btn,
+  .add-shelf-btn {
+    display: none !important;
+  }
+
   /* 工具栏隐藏时顶栏不再占位，正文上提铺满屏幕 */
   .reader.bars-hidden .reader-topbar {
     display: none;

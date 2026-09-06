@@ -11,6 +11,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lan": "npm run build && node server/lan-server.mjs",
+    "lan:add": "node server/lan-server.mjs add",
+    "lan:remove": "node server/lan-server.mjs remove",
+    "lan:list": "node server/lan-server.mjs list",
     "test:smoke": "node scripts/run-smoke.mjs"
   },
   "dependencies": {

@@ -258,7 +258,10 @@ export default function Bookshelf({
               <div className="shelf-sub">共 {currentBooks.length} 本 · 滑动浏览 · 点击即可阅读</div>
             </div>
           </div>
-          <button className={manage ? 'btn primary' : 'btn'} onClick={() => (manage ? exitManage() : setManage(true))}>
+          <button
+            className={`btn ${manage ? 'primary' : ''} manage-btn`}
+            onClick={() => (manage ? exitManage() : setManage(true))}
+          >
             {manage ? '完成' : '管理'}
           </button>
         </header>
@@ -336,7 +339,7 @@ export default function Bookshelf({
           <button className="btn" onClick={() => setThemeOpen((o) => !o)}>
             主题：{THEME_OPTIONS.find((t) => t.id === shelfTheme)?.name}
           </button>
-          <button className="btn" onClick={onImportFolder}>
+          <button className="btn pc-tool" onClick={onImportFolder}>
             导入文件夹
           </button>
           <button className="btn primary" onClick={onImport}>
@@ -364,7 +367,7 @@ export default function Bookshelf({
 
       <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>我的文件夹（{groups.length}）</span>
-        <button className="btn" onClick={createFolder}>
+        <button className="btn pc-tool" onClick={createFolder}>
           新建文件夹
         </button>
       </div>
@@ -442,7 +445,7 @@ export default function Bookshelf({
                 <div className="book-meta">在线 · {formatSize(b.size)} · 点击在线阅读</div>
               </div>
               {!added && (
-                <button className="btn" onClick={() => void onAddOnline(b)}>
+                <button className="btn add-shelf-btn" onClick={() => void onAddOnline(b)}>
                   加入书架
                 </button>
               )}
@@ -471,7 +474,7 @@ export default function Bookshelf({
                     <div className="book-meta">局域网 · {formatSize(b.size)} · 点击阅读</div>
                   </div>
                   {!added && (
-                    <button className="btn" onClick={() => void onAddLan(b)}>
+                    <button className="btn add-shelf-btn" onClick={() => void onAddLan(b)}>
                       加入书架
                     </button>
                   )}
