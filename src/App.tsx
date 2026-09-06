@@ -397,18 +397,7 @@ export default function App() {
       for (const id of ids) next.add(id);
       hiddenLanRef.current = next;
       setHiddenLan(next);
-      void syncLanData(undefined, undefined, next);
-    },
-    [hiddenLan, syncLanData],
-  );
-
-  const restoreLanBooks = useCallback(
-    async (ids: string[]) => {
-      if (!ids.length) return;
-      const next = new Set(hiddenLan);
-      for (const id of ids) next.delete(id);
-      hiddenLanRef.current = next;
-      setHiddenLan(next);
+      setLanBooks((prev) => prev.filter((ob) => !ids.includes(lanBookId(ob.fileName, ob.size))));
       void syncLanData(undefined, undefined, next);
     },
     [hiddenLan, syncLanData],
@@ -625,9 +614,6 @@ export default function App() {
           onMoveGroup={(id, dir) => moveGroup(id, dir)}
           onMoveBooksToGroup={(ids, gid) => moveBooksToGroup(ids, gid)}
           onRemoveLanBooks={(ids) => removeLanBooks(ids)}
-          onRestoreLanBooks={(ids) => restoreLanBooks(ids)}
-          lanHiddenCount={hiddenLan.size}
-          lanHiddenIds={[...hiddenLan]}
         />
       ) : (
         <Reader

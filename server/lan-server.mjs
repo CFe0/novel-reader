@@ -111,6 +111,9 @@ async function cmdSet(dir) {
     process.exit(1);
   }
   await saveConfig([{ path: target, addedAt: Date.now() }]);
+  // 重新设定书库时清除“移除书架”标记，便于手动重新加入
+  const data = await readData();
+  await writeFile(dataPath, JSON.stringify({ groups: data.groups, assignments: data.assignments, hidden: [] }, null, 2) + '\n', 'utf-8');
   console.log('已将固定书库设为：' + target);
 }
 

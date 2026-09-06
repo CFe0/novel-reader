@@ -14,8 +14,6 @@ interface Props {
   onlineBooks: OnlineBook[];
   lanBooks: OnlineBook[];
   lanAvailable: boolean;
-  lanHiddenCount: number;
-  lanHiddenIds: string[];
   shelfTheme: ThemeName;
   onShelfThemeChange: (theme: ThemeName) => void;
   onOpenLocal: (book: BookRecord) => void;
@@ -31,7 +29,6 @@ interface Props {
   onMoveGroup: (id: string, dir: -1 | 1) => Promise<void>;
   onMoveBooksToGroup: (ids: string[], groupId: string | null) => Promise<void>;
   onRemoveLanBooks: (ids: string[]) => Promise<void>;
-  onRestoreLanBooks: (ids: string[]) => Promise<void>;
 }
 
 function formatSize(size: number): string {
@@ -102,8 +99,6 @@ export default function Bookshelf({
   onlineBooks,
   lanBooks,
   lanAvailable,
-  lanHiddenCount,
-  lanHiddenIds,
   shelfTheme,
   onShelfThemeChange,
   onOpenLocal,
@@ -119,7 +114,6 @@ export default function Bookshelf({
   onMoveGroup,
   onMoveBooksToGroup,
   onRemoveLanBooks,
-  onRestoreLanBooks,
 }: Props) {
   const [tab, setTab] = useState<Tab>(() => {
     const saved = localStorage.getItem(TAB_KEY) as Tab | null;
@@ -421,8 +415,12 @@ export default function Bookshelf({
                     <button
                       className="btn"
                       onClick={() => {
-                        if (window.confirm(`将《${b.name}》移出书架？\n不会删除电脑上的文件，随时可以恢复。`))
-                          void onRemoveLanBooks([b.id]);
+                if (
+                  window.confirm(
+                    `将《${b.name}》移出书架？\n不会删除电脑上的文件；如需重新加入，请重新运行「设置局域网书库文件夹.bat」选择该文件夹。`,
+                  )
+                )
+                  void onRemoveLanBooks([b.id]);
                       }}
                     >
                       移除书架
@@ -461,7 +459,11 @@ export default function Bookshelf({
                   <button
                     className="btn pc-tool"
                     onClick={() => {
-                      if (window.confirm(`将《${b.name}》移出书架？\n不会删除电脑上的文件，随时可以恢复。`))
+                      if (
+                        window.confirm(
+                          `将《${b.name}》移出书架？\n不会删除电脑上的文件；如需重新加入，请重新运行「设置局域网书库文件夹.bat」选择该文件夹。`,
+                        )
+                      )
                         void onRemoveLanBooks([b.id]);
                     }}
                   >
@@ -487,25 +489,13 @@ export default function Bookshelf({
       <>
         <div className="tab-toolbar">
           <span>电脑共享 · 共 {lanBooks.length} 本</span>
-          {lanHiddenCount > 0 && (
-            <button
-              className="btn"
-              onClick={() => {
-                if (window.confirm(`恢复之前移除的 ${lanHiddenCount} 本书到书架？`)) {
-                  void onRestoreLanBooks(lanHiddenIds);
-                }
-              }}
-            >
-              恢复已移除（{lanHiddenCount}）
-            </button>
-          )}
           {lanBooks.length > 0 && (
             <button
               className="btn pc-tool"
               onClick={() => {
                 if (
                   window.confirm(
-                    `将书库中全部 ${lanBooks.length} 本移出书架？\n不会删除电脑上的文件，之后可点“恢复已移除”找回。`,
+                    `将书库中全部 ${lanBooks.length} 本移出书架？\n不会删除电脑上的文件；如需重新加入，请重新运行「设置局域网书库文件夹.bat」选择该文件夹。`,
                   )
                 ) {
                   void onRemoveLanBooks(lanBooks.map((b) => `lan|${b.fileName}|${b.size}`));
