@@ -26,6 +26,19 @@
 - 运行 `npm run lan`，电脑会打印本机与局域网访问地址（如 `http://192.168.x.x:8612/`）；
 - 手机/平板连上**同一个 Wi-Fi**，用浏览器打开该地址即可阅读；书库文件不经过公网。
 
+## 迁移到新电脑 / 笔记本
+
+1. 新电脑安装 **Node.js LTS**（https://nodejs.org）；
+2. 拷贝整个项目文件夹（或在 GitHub 上克隆 `CFe0/novel-reader` 的公开部分）；
+3. 双击 `启动局域网书库.bat`，或执行 `npm install && npm run lan`；
+4. 首次启动若防火墙询问，选“允许访问（专用网络）”；若已错过，用管理员 PowerShell 执行：
+   ```powershell
+   netsh advfirewall firewall add rule name="NovelReader LAN 8612" dir=in action=allow protocol=TCP localport=8612
+   ```
+5. 手机连同一 Wi-Fi 访问 `http://<新电脑IP>:8612/`。
+
+> 私密书放在 `局域网书库/`（不进 GitHub），迁移时随文件夹一起拷贝；公开书在 `public/books/`（随 GitHub 自动同步）。
+
 ## 运行方式
 
 ```bash
