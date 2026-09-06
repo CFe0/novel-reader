@@ -247,6 +247,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (pathname.startsWith('/lan-books/')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
       const rel = pathname.slice('/lan-books/'.length);
       const found = await findBookFile(rel);
       if (!found) {

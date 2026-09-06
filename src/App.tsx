@@ -33,6 +33,9 @@ type View =
   | { kind: 'shelf' }
   | { kind: 'reader'; book: BookRecord; file: File | Sliceable; chapters: Chapter[]; encoding: EncodingLabel };
 
+// 双击 dist/index.html（file://）打开时，局域网接口自动指向本机服务；网页托管时使用同源相对路径
+const LAN_BASE = typeof window !== 'undefined' && window.location.protocol === 'file:' ? 'http://localhost:8612' : '';
+
 export default function App() {
   const [books, setBooks] = useState<BookRecord[]>([]);
   const [onlineBooks, setOnlineBooks] = useState<OnlineBook[]>([]);
@@ -103,7 +106,7 @@ export default function App() {
     let alive = true;
     void (async () => {
       try {
-        const res = await fetch(`lan-books/index.json?t=${Date.now()}`);
+        const res = await fetch(`${LAN_BASE}/lan-books/index.json?t=${Date.now()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { books?: OnlineBook[] };
         if (!alive) return;
@@ -126,7 +129,7 @@ export default function App() {
               encoding: null,
               chapterCount: null,
               source: 'lan',
-              url: `lan-books/${encodeURIComponent(ob.fileName)}`,
+              url: `${LAN_BASE}/lan-books/${encodeURIComponent(ob.fileName)}`,
               pinned: false,
             };
             created.push(rec);
@@ -138,7 +141,7 @@ export default function App() {
         }
         // 拉取服务端共享分组数据并应用到本机记录
         try {
-          const dr = await fetch(`/lan-data.json?t=${Date.now()}`);
+          const dr = await fetch(`${LAN_BASE}/lan-data.json?t=${Date.now()}`);
           if (dr.ok) {
             const shared = await dr.json();
             const map = shared.assignments ?? {};
@@ -276,7 +279,7 @@ export default function App() {
 
   const openLanBook = useCallback(
     async (ob: OnlineBook) => {
-      const url = `lan-books/${encodeURIComponent(ob.fileName)}`;
+      const url = `${LAN_BASE}/lan-books/${encodeURIComponent(ob.fileName)}`;
       setBusy('正在从电脑加载书籍…');
       try {
         const res = await fetch(url);
@@ -372,7 +375,7 @@ export default function App() {
         if (x.source === 'lan' && x.groupId) assignments[x.id] = x.groupId;
       }
       try {
-        await fetch('/lan-data.json', {
+        await fetch(`${LAN_BASE}/lan-data.json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ groups: groupsNow, assignments }),

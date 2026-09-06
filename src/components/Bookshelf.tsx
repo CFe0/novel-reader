@@ -452,7 +452,7 @@ export default function Bookshelf({
     if (!lanAvailable) {
       return (
         <div className="hint-text">
-          局域网书库未连接：请在电脑上运行「启动局域网书库.bat」，手机与本机连同一 Wi-Fi 后刷新。
+          局域网书库未连接：请在电脑上运行「打开电脑管理页.bat」（或确保 http://localhost:8612 服务已启动），然后刷新本页；手机需与本机连同一 Wi-Fi。
         </div>
       );
     }
