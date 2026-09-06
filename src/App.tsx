@@ -491,7 +491,12 @@ export default function App() {
       setBusy(`正在导入 ${idxs.length} 本小说…`);
       for (let i = 0; i < idxs.length; i++) {
         setBusy(`正在导入 ${i + 1}/${idxs.length}：${idxs[i].f.name}`);
-        await openTxt(idxs[i].f, idxs[i].h);
+        try {
+          await openTxt(idxs[i].f, idxs[i].h);
+        } catch (err) {
+          console.warn('导入失败：' + idxs[i].f.name, err);
+          alert(`导入失败：${idxs[i].f.name}\n该文件可能编码特殊或结构异常，请尝试换用“记事本另存为 UTF-8”后再导入。`);
+        }
       }
       setView({ kind: 'shelf' });
       setBusy(null);
@@ -523,7 +528,15 @@ export default function App() {
       if (pendingLocalRef.current && files.length === 1) {
         const pending = pendingLocalRef.current;
         pendingLocalRef.current = null;
-        void openTxt(files[0], null, pending.encoding ?? undefined);
+        void (async () => {
+          try {
+            await openTxt(files[0], null, pending.encoding ?? undefined);
+          } catch (err) {
+            console.warn('打开失败：' + files[0].name, err);
+            setBusy(null);
+            alert(`打开失败：${files[0].name}\n该文件可能编码特殊或结构异常。`);
+          }
+        })();
       } else {
         pendingLocalRef.current = null;
         void importMany(files);

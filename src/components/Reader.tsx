@@ -368,13 +368,23 @@ export default function Reader({
 
   const chapterParagraphs = (ch: Chapter): string[] => {
     const raw = texts[ch.index] ?? '';
-    const lines = raw
+    let lines = raw
       .replace(/\r\n/g, '\n')
       .split('\n')
       .map((l) => l.trim())
       .filter(Boolean);
     if (lines[0] === ch.title.trim()) lines.shift();
-    return lines;
+    // 超长单行按字符切分，避免单段过大导致渲染卡死
+    const MAX_CHUNK = 3000;
+    const out: string[] = [];
+    for (const line of lines) {
+      if (line.length <= MAX_CHUNK) {
+        out.push(line);
+      } else {
+        for (let i = 0; i < line.length; i += MAX_CHUNK) out.push(line.slice(i, i + MAX_CHUNK));
+      }
+    }
+    return out;
   };
 
   const cycleTheme = () => {
