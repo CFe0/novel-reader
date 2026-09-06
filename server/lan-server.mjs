@@ -67,6 +67,16 @@ async function cmdAdd(dir) {
   console.log('已登记固定书库：' + target);
 }
 
+async function cmdSet(dir) {
+  const target = resolve(dir);
+  if (!existsSync(target) || !(await stat(target)).isDirectory()) {
+    console.error('文件夹不存在或不是目录：' + target);
+    process.exit(1);
+  }
+  await saveConfig([{ path: target, addedAt: Date.now() }]);
+  console.log('已将固定书库设为：' + target);
+}
+
 async function cmdRemove(arg) {
   const roots = await loadConfig();
   const idx = Number(arg);
@@ -224,13 +234,15 @@ const server = createServer(async (req, res) => {
 const [cmd, arg] = process.argv.slice(2);
 if (cmd === 'add') {
   await cmdAdd(arg);
+} else if (cmd === 'set') {
+  await cmdSet(arg);
 } else if (cmd === 'remove') {
   await cmdRemove(arg);
 } else if (cmd === 'list') {
   await cmdList();
 } else if (cmd && cmd !== 'serve') {
   console.error('未知命令：' + cmd);
-  console.error('用法：node server/lan-server.mjs [serve|add <路径>|remove <路径或序号>|list]');
+  console.error('用法：node server/lan-server.mjs [serve|add <路径>|set <路径>|remove <路径或序号>|list]');
   process.exit(1);
 } else {
   await cmdList();

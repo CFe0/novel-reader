@@ -160,6 +160,8 @@ export default function Bookshelf({
   const [refreshing, setRefreshing] = useState(false);
   const [updated, setUpdated] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  const [dialog, setDialog] = useState<null | { kind: 'create' } | { kind: 'rename'; group: BookGroup }>(null);
+  const [folderName, setFolderName] = useState('');
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [manage, setManage] = useState(false);
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
@@ -186,14 +188,23 @@ export default function Bookshelf({
     window.setTimeout(() => setUpdated(false), 2000);
   };
 
-  const createFolder = () => {
-    const name = window.prompt('输入文件夹名称：');
-    if (name?.trim()) void onCreateGroup(name);
+  const openCreate = () => {
+    setFolderName('');
+    setDialog({ kind: 'create' });
   };
 
-  const renameFolder = (g: BookGroup) => {
-    const name = window.prompt('重命名文件夹：', g.name);
-    if (name?.trim() && name.trim() !== g.name) void onRenameGroup(g.id, name);
+  const openRename = (g: BookGroup) => {
+    setFolderName(g.name);
+    setDialog({ kind: 'rename', group: g });
+  };
+
+  const submitFolder = () => {
+    const name = folderName.trim();
+    if (!name || !dialog) return;
+    if (dialog.kind === 'create') void onCreateGroup(name);
+    else if (name !== dialog.group.name) void onRenameGroup(dialog.group.id, name);
+    setDialog(null);
+    setFolderName('');
   };
 
   const removeFolder = (g: BookGroup) => {
@@ -367,7 +378,7 @@ export default function Bookshelf({
 
       <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>我的文件夹（{groups.length}）</span>
-        <button className="btn pc-tool" onClick={createFolder}>
+        <button className="btn pc-tool" onClick={openCreate}>
           新建文件夹
         </button>
       </div>
@@ -410,7 +421,7 @@ export default function Bookshelf({
                   >
                     ↓
                   </button>
-                  <button className="icon-btn" title="重命名" onClick={() => renameFolder(g)}>
+                  <button className="icon-btn" title="重命名" onClick={() => openRename(g)}>
                     改
                   </button>
                   <button className="icon-btn" title="删除" onClick={() => removeFolder(g)}>
@@ -509,8 +520,46 @@ export default function Bookshelf({
                 onOpen={() => onOpenBook(b)}
                 onFavorite={() => onToggleFavorite(b)}
               />
-            ))}
+          ))}
         </>
+      )}
+
+      {dialog && (
+        <div
+          className="backdrop"
+          onClick={() => {
+            setDialog(null);
+            setFolderName('');
+          }}
+        >
+          <div className="input-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="input-modal-title">{dialog.kind === 'create' ? '新建文件夹' : '重命名文件夹'}</div>
+            <input
+              autoFocus
+              value={folderName}
+              placeholder="输入文件夹名称"
+              onChange={(e) => setFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitFolder();
+                if (e.key === 'Escape') setDialog(null);
+              }}
+            />
+            <div className="input-modal-actions">
+              <button
+                className="btn"
+                onClick={() => {
+                  setDialog(null);
+                  setFolderName('');
+                }}
+              >
+                取消
+              </button>
+              <button className="btn primary" disabled={!folderName.trim()} onClick={submitFolder}>
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
