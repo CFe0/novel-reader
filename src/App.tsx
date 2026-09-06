@@ -48,6 +48,10 @@ export default function App() {
   const folderInputRef = useRef<HTMLInputElement>(null);
   const pendingLocalRef = useRef<BookRecord | null>(null);
   const chapterCacheRef = useRef(new Map<string, Chapter[]>());
+  const booksRef = useRef(books);
+  const groupsRef = useRef(groups);
+  booksRef.current = books;
+  groupsRef.current = groups;
 
   useEffect(() => {
     document.documentElement.dataset.theme = view.kind === 'shelf' ? shelfTheme : settings.theme;
@@ -131,6 +135,35 @@ export default function App() {
         }
         if (created.length && alive) {
           setBooks((prev) => [...created.filter((r) => !prev.some((b) => b.id === r.id)), ...prev]);
+        }
+        // 拉取服务端共享分组数据并应用到本机记录
+        try {
+          const dr = await fetch(`/lan-data.json?t=${Date.now()}`);
+          if (dr.ok) {
+            const shared = await dr.json();
+            const map = shared.assignments ?? {};
+            const all = await idbAll<BookRecord>('books');
+            let changed = false;
+            for (const rec of all) {
+              if (rec.source !== 'lan') continue;
+              const target = typeof map[rec.id] === 'string' ? map[rec.id] : undefined;
+              if ((rec.groupId ?? undefined) !== target) {
+                rec.groupId = target;
+                await idbPut('books', rec);
+                changed = true;
+              }
+            }
+            if (Array.isArray(shared.groups) && shared.groups.length) {
+              setGroups([...shared.groups].sort((a: BookGroup, b: BookGroup) => a.order - b.order));
+            }
+            if (changed && alive) {
+              const list = await idbAll<BookRecord>('books');
+              list.sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
+              if (alive) setBooks(list);
+            }
+          }
+        } catch {
+          // 共享数据不可用时忽略（非局域网服务环境）
         }
       } catch {
         if (alive) setLanAvailable(false);
@@ -329,6 +362,28 @@ export default function App() {
     [view],
   );
 
+  const syncLanData = useCallback(
+    async (g?: BookGroup[], b?: BookRecord[]) => {
+      if (!lanAvailable) return;
+      const groupsNow = g ?? groupsRef.current;
+      const booksNow = b ?? booksRef.current;
+      const assignments: Record<string, string> = {};
+      for (const x of booksNow) {
+        if (x.source === 'lan' && x.groupId) assignments[x.id] = x.groupId;
+      }
+      try {
+        await fetch('/lan-data.json', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groups: groupsNow, assignments }),
+        });
+      } catch (err) {
+        console.warn('同步局域网分组失败', err);
+      }
+    },
+    [lanAvailable],
+  );
+
   const createGroup = useCallback(
     async (name: string) => {
       const trimmed = name.trim();
@@ -341,9 +396,11 @@ export default function App() {
         createdAt: Date.now(),
       };
       await idbPut('groups', group);
-      setGroups((prev) => [...prev, group].sort((a, b) => a.order - b.order));
+      const next = [...groups, group].sort((a, b) => a.order - b.order);
+      setGroups(next);
+      void syncLanData(next);
     },
-    [groups],
+    [groups, syncLanData],
   );
 
   const renameGroup = useCallback(
@@ -354,9 +411,11 @@ export default function App() {
       if (!target) return;
       const next = { ...target, name: trimmed };
       await idbPut('groups', next);
-      setGroups((prev) => prev.map((g) => (g.id === id ? next : g)));
+      const list = groups.map((g) => (g.id === id ? next : g));
+      setGroups(list);
+      void syncLanData(list);
     },
-    [groups],
+    [groups, syncLanData],
   );
 
   const deleteGroup = useCallback(
@@ -368,10 +427,12 @@ export default function App() {
         await idbPut('books', rec);
       }
       await idbDelete('groups', id);
+      const nextBooks = books.map((b) => (b.groupId === id ? { ...b, groupId: undefined } : b));
       setGroups(next);
-      setBooks((prev) => prev.map((b) => (b.groupId === id ? { ...b, groupId: undefined } : b)));
+      setBooks(nextBooks);
+      void syncLanData(next, nextBooks);
     },
-    [groups, books],
+    [groups, books, syncLanData],
   );
 
   const moveGroup = useCallback(
@@ -386,8 +447,9 @@ export default function App() {
       });
       for (const g of sorted) await idbPut('groups', g);
       setGroups(sorted);
+      void syncLanData(sorted);
     },
-    [groups],
+    [groups, syncLanData],
   );
 
   const removeLocalBook = useCallback(async (book: BookRecord) => {
@@ -404,8 +466,9 @@ export default function App() {
         if (ids.includes(b.id)) await idbPut('books', b);
       }
       setBooks(next);
+      void syncLanData(undefined, next);
     },
-    [books],
+    [books, syncLanData],
   );
 
   const updateSettings = useCallback((next: ReaderSettings) => {

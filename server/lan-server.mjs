@@ -21,6 +21,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const distDir = join(root, 'dist');
 const builtinBooksDir = join(root, '局域网书库');
 const configPath = join(root, 'lan-config.json');
+const dataPath = join(root, 'lan-data.json');
 const PORT = Number(process.env.PORT || 8612);
 
 const MIME = {
@@ -31,6 +32,41 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
   '.nojekyll': 'text/plain',
 };
+
+const DEFAULT_DATA = { groups: [], assignments: {} };
+
+async function readData() {
+  try {
+    const raw = await readFile(dataPath, 'utf-8');
+    const d = JSON.parse(raw);
+    return {
+      groups: Array.isArray(d?.groups) ? d.groups : [],
+      assignments: d?.assignments && typeof d.assignments === 'object' ? d.assignments : {},
+    };
+  } catch {
+    return { ...DEFAULT_DATA };
+  }
+}
+
+function isLoopback(req) {
+  const ip = req.socket.remoteAddress || '';
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (c) => {
+      body += c;
+      if (body.length > 5 * 1024 * 1024) {
+        reject(new Error('too large'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
 
 async function loadConfig() {
   try {
@@ -135,8 +171,9 @@ function safeJoin(base, rel) {
 }
 
 function writeJson(res, body) {
+  const payload = typeof body === 'string' ? body : JSON.stringify(body);
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(body);
+  res.end(payload);
 }
 
 async function findBookFile(rel) {
@@ -167,7 +204,46 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathname === '/lan-books/index.json') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
       writeJson(res, await lanBookIndex());
+      return;
+    }
+    if (pathname === '/lan-data.json') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      if (req.method === 'GET') {
+        writeJson(res, await readData());
+        return;
+      }
+      if (req.method === 'POST') {
+        if (!isLoopback(req)) {
+          res.writeHead(403);
+          res.end('Forbidden');
+          return;
+        }
+        try {
+          const raw = await readBody(req);
+          const d = JSON.parse(raw);
+          const data = {
+            groups: Array.isArray(d?.groups) ? d.groups : [],
+            assignments: d?.assignments && typeof d.assignments === 'object' ? d.assignments : {},
+          };
+          await writeFile(dataPath, JSON.stringify(data, null, 2) + '\n', 'utf-8');
+          writeJson(res, { ok: true });
+        } catch {
+          res.writeHead(400);
+          res.end('Bad Request');
+        }
+        return;
+      }
+      res.writeHead(405);
+      res.end('Method Not Allowed');
       return;
     }
     if (pathname.startsWith('/lan-books/')) {
@@ -190,7 +266,7 @@ const server = createServer(async (req, res) => {
           'Content-Type': 'text/plain; charset=utf-8',
           'Accept-Ranges': 'bytes',
         });
-        createReadStream(fp, { start, end }).pipe(res);
+          createReadStream(fp, { start, end }).on('error', () => {}).pipe(res);
         return;
       }
       res.writeHead(200, {
@@ -198,7 +274,7 @@ const server = createServer(async (req, res) => {
         'Content-Type': 'text/plain; charset=utf-8',
         'Accept-Ranges': 'bytes',
       });
-      createReadStream(fp).pipe(res);
+      createReadStream(fp).on('error', () => {}).pipe(res);
       return;
     }
 
@@ -225,8 +301,12 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
     res.end(data);
   } catch (err) {
-    res.writeHead(500);
-    res.end('Server error: ' + err.message);
+    if (!res.headersSent) {
+      res.writeHead(500);
+      res.end('Server error: ' + err.message);
+    } else {
+      res.end();
+    }
   }
 });
 

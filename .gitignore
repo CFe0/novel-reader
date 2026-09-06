@@ -5,5 +5,6 @@ dist/
 public/books/*/chapters/
 局域网书库/*.txt
 lan-config.json
+lan-data.json
 .DS_Store
 Thumbs.db
