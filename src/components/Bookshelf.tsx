@@ -16,6 +16,7 @@ interface Props {
   shelfTheme: ThemeName;
   onShelfThemeChange: (theme: ThemeName) => void;
   onImport: () => void;
+  onImportFolder: () => void;
   onRefreshOnlineBooks: () => Promise<void>;
   onOpenBook: (book: BookRecord) => void;
   onOpenOnline: (book: OnlineBook) => void;
@@ -139,6 +140,7 @@ export default function Bookshelf({
   shelfTheme,
   onShelfThemeChange,
   onImport,
+  onImportFolder,
   onRefreshOnlineBooks,
   onOpenBook,
   onOpenOnline,
@@ -330,9 +332,12 @@ export default function Bookshelf({
           <h1 className="shelf-title">本地小说阅读器</h1>
           <div className="shelf-sub">文件夹管理小说 · 小说负责阅读</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+        <div style={{ display: 'flex', gap: 8, position: 'relative', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button className="btn" onClick={() => setThemeOpen((o) => !o)}>
             主题：{THEME_OPTIONS.find((t) => t.id === shelfTheme)?.name}
+          </button>
+          <button className="btn" onClick={onImportFolder}>
+            导入文件夹
           </button>
           <button className="btn primary" onClick={onImport}>
             打开 TXT

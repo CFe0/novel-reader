@@ -13,18 +13,21 @@ export function supportsFilePicker(): boolean {
   return typeof (window as unknown as PickerWindow).showOpenFilePicker === 'function';
 }
 
-export async function pickTxtWithPicker(): Promise<OpenedTxt | null> {
+export async function pickTxtFilesWithPicker(): Promise<OpenedTxt[]> {
   const picker = (window as unknown as PickerWindow).showOpenFilePicker;
-  if (!picker) return null;
+  if (!picker) return [];
   try {
-    const [handle] = await picker.call(window, {
+    const handles = await picker.call(window, {
       types: [{ description: 'TXT 小说文件', accept: { 'text/plain': ['.txt'] } }],
-      multiple: false,
+      multiple: true,
     });
-    const file = await handle.getFile();
-    return { file, handle };
+    const result: OpenedTxt[] = [];
+    for (const handle of handles) {
+      result.push({ file: await handle.getFile(), handle });
+    }
+    return result;
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') return null;
+    if (err instanceof DOMException && err.name === 'AbortError') return [];
     throw err;
   }
 }

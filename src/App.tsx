@@ -22,7 +22,7 @@ import {
   lanBookId,
   onlineBookId,
   openSavedFile,
-  pickTxtWithPicker,
+  pickTxtFilesWithPicker,
   RemoteBookFile,
   saveHandle,
   supportsFilePicker,
@@ -45,6 +45,7 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const chapterCacheRef = useRef(new Map<string, Chapter[]>());
 
   useEffect(() => {
@@ -260,14 +261,21 @@ export default function App() {
         }
         return;
       }
+      const handle = await getSavedHandle(book.id);
+      if (!handle) {
+        setBusy(null);
+        alert(
+          '当前网页环境无法自动记住该文件（浏览器仅对 https 或 localhost 开放此能力）。\n请点击右上角“打开 TXT”，重新选择同一个文件（同一文件会自动恢复进度与分组）。',
+        );
+        return;
+      }
       setBusy('正在打开…');
       const file = await openSavedFile(book.id);
       if (!file) {
         setBusy(null);
-        alert('无法自动重新打开原文件（文件可能已被移动或删除），请重新选择该 TXT 文件。');
+        alert('未能获得文件读取权限，请重新选择该 TXT 文件。');
         return;
       }
-      const handle = await getSavedHandle(book.id);
       await openTxt(file, handle, book.encoding ?? undefined);
     },
     [openRemoteBook, openTxt],
@@ -460,35 +468,59 @@ export default function App() {
     saveShelfTheme(theme);
   }, []);
 
+  const importMany = useCallback(
+    async (files: File[]) => {
+      const txts = files.filter((f) => /\.txt$/i.test(f.name));
+      if (!txts.length) return;
+      setBusy(`正在导入 ${txts.length} 本小说…`);
+      for (let i = 0; i < txts.length; i++) {
+        setBusy(`正在导入 ${i + 1}/${txts.length}：${txts[i].name}`);
+        await openTxt(txts[i], null);
+      }
+      setView({ kind: 'shelf' });
+      setBusy(null);
+    },
+    [openTxt],
+  );
+
   const onImportClick = useCallback(async () => {
     if (supportsFilePicker()) {
       try {
-        const picked = await pickTxtWithPicker();
-        if (picked) void openTxt(picked.file, picked.handle);
+        const picked = await pickTxtFilesWithPicker();
+        if (picked.length) {
+          const files = picked.map((p) => p.file);
+          void importMany(files);
+        }
       } catch {
         alert('打开文件失败，请重试。');
       }
     } else {
       inputRef.current?.click();
     }
-  }, [openTxt]);
+  }, [importMany]);
 
   const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) void openTxt(f, null);
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length) void importMany(files);
+    e.target.value = '';
+  };
+
+  const onFolderInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length) void importMany(files);
     e.target.value = '';
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files?.[0];
-    if (!f) return;
-    if (!/\.txt$/i.test(f.name)) {
+    const files = e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+    const txts = files.filter((f) => /\.txt$/i.test(f.name));
+    if (files.length > 0 && txts.length === 0) {
       alert('仅支持 .txt 文件');
       return;
     }
-    void openTxt(f, null);
+    if (txts.length) void importMany(txts);
   };
 
   return (
@@ -513,6 +545,7 @@ export default function App() {
           shelfTheme={shelfTheme}
           onShelfThemeChange={updateShelfTheme}
           onImport={() => void onImportClick()}
+          onImportFolder={() => folderInputRef.current?.click()}
           onRefreshOnlineBooks={() => refreshOnlineBooks()}
           onOpenBook={(b) => void reopenBook(b)}
           onOpenOnline={(b) => void openOnlineBook(b)}
@@ -541,7 +574,23 @@ export default function App() {
           onBack={() => setView({ kind: 'shelf' })}
         />
       )}
-      <input ref={inputRef} type="file" accept=".txt,text/plain" style={{ display: 'none' }} onChange={onInputChange} />
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".txt,text/plain"
+        multiple
+        style={{ display: 'none' }}
+        onChange={onInputChange}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        accept=".txt,text/plain"
+        multiple
+        {...({ webkitdirectory: '' } as Record<string, string>)}
+        style={{ display: 'none' }}
+        onChange={onFolderInputChange}
+      />
     </div>
   );
 }
