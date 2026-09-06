@@ -485,6 +485,26 @@ export default function Reader({
         <button className="rail-btn" title="主题" onClick={() => setThemePopoverOpen((o) => !o)}>
           ◐<span>主题</span>
         </button>
+        {settings.readingMode === 'scroll' && (
+          <>
+            <button
+              className="rail-btn"
+              title="上一章"
+              disabled={activeIndex === 0}
+              onClick={() => goToChapter(activeIndex - 1)}
+            >
+              ↑<span>上一章</span>
+            </button>
+            <button
+              className="rail-btn"
+              title="下一章"
+              disabled={activeIndex >= lastChapterIndex}
+              onClick={() => goToChapter(activeIndex + 1)}
+            >
+              ↓<span>下一章</span>
+            </button>
+          </>
+        )}
         {themePopoverOpen && (
           <div className="theme-popover">
             {THEME_OPTIONS.map((t) => (
@@ -548,6 +568,20 @@ export default function Reader({
         <button className="btn" onClick={cycleTheme}>
           主题
         </button>
+        {settings.readingMode === 'scroll' && (
+          <>
+            <button className="btn" disabled={activeIndex === 0} onClick={() => goToChapter(activeIndex - 1)}>
+              上一章
+            </button>
+            <button
+              className="btn primary"
+              disabled={activeIndex >= lastChapterIndex}
+              onClick={() => goToChapter(activeIndex + 1)}
+            >
+              下一章
+            </button>
+          </>
+        )}
         {settings.readingMode === 'chapter' && (
           <button
             className="btn primary"

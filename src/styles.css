@@ -993,6 +993,11 @@ button {
   background: var(--hover);
 }
 
+.rail-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .theme-popover {
   position: absolute;
   right: calc(100% + 10px);
