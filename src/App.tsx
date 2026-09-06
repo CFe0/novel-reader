@@ -10,6 +10,7 @@ import type {
   OnlineBook,
   OnlineChapterIndex,
   ReaderSettings,
+  ThemeName,
 } from './types';
 import { detectEncoding } from './lib/encoding';
 import { scanChapters } from './lib/chapters';
@@ -26,7 +27,7 @@ import {
   saveHandle,
   supportsFilePicker,
 } from './lib/fileOpen';
-import { loadSettings, saveSettings } from './lib/settings';
+import { loadSettings, loadShelfTheme, saveSettings, saveShelfTheme } from './lib/settings';
 
 type View =
   | { kind: 'shelf' }
@@ -39,6 +40,7 @@ export default function App() {
   const [lanAvailable, setLanAvailable] = useState(false);
   const [groups, setGroups] = useState<BookGroup[]>([]);
   const [settings, setSettings] = useState<ReaderSettings>(() => loadSettings());
+  const [shelfTheme, setShelfTheme] = useState<ThemeName>(() => loadShelfTheme());
   const [view, setView] = useState<View>({ kind: 'shelf' });
   const [busy, setBusy] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -47,8 +49,8 @@ export default function App() {
   const chapterCacheRef = useRef(new Map<string, Chapter[]>());
 
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme;
-  }, [settings.theme]);
+    document.documentElement.dataset.theme = view.kind === 'shelf' ? shelfTheme : settings.theme;
+  }, [view.kind, shelfTheme, settings.theme]);
 
   useEffect(() => {
     let alive = true;
@@ -411,6 +413,11 @@ export default function App() {
     saveSettings(next);
   }, []);
 
+  const updateShelfTheme = useCallback((theme: ThemeName) => {
+    setShelfTheme(theme);
+    saveShelfTheme(theme);
+  }, []);
+
   const importMany = useCallback(
     async (files: File[]) => {
       const txts = files.filter((f) => /\.txt$/i.test(f.name));
@@ -485,6 +492,8 @@ export default function App() {
           onlineBooks={onlineBooks}
           lanBooks={lanBooks}
           lanAvailable={lanAvailable}
+          shelfTheme={shelfTheme}
+          onShelfThemeChange={updateShelfTheme}
           onOpenLocal={(b) => void reopenBook(b)}
           onOpenOnline={(b) => void openOnlineBook(b)}
           onOpenLan={(b) => void openLanBook(b)}

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { BookGroup, BookRecord, OnlineBook, Progress } from '../types';
+import type { BookGroup, BookRecord, OnlineBook, Progress, ThemeName } from '../types';
 import { idbAll } from '../lib/storage';
 import { ENCODING_OPTIONS } from '../lib/encoding';
+import { THEME_OPTIONS, THEME_SWATCHES } from '../lib/themes';
 
 type Tab = 'online' | 'lan' | 'local';
 const TAB_KEY = 'txt-reader-tab';
@@ -13,6 +14,8 @@ interface Props {
   onlineBooks: OnlineBook[];
   lanBooks: OnlineBook[];
   lanAvailable: boolean;
+  shelfTheme: ThemeName;
+  onShelfThemeChange: (theme: ThemeName) => void;
   onOpenLocal: (book: BookRecord) => void;
   onOpenOnline: (book: OnlineBook) => void;
   onOpenLan: (book: OnlineBook) => void;
@@ -93,6 +96,8 @@ export default function Bookshelf({
   onlineBooks,
   lanBooks,
   lanAvailable,
+  shelfTheme,
+  onShelfThemeChange,
   onOpenLocal,
   onOpenOnline,
   onOpenLan,
@@ -118,6 +123,7 @@ export default function Bookshelf({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addTo, setAddTo] = useState<BookGroup | null>(null);
   const [addIds, setAddIds] = useState<string[]>([]);
+  const [themeOpen, setThemeOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -200,14 +206,67 @@ export default function Bookshelf({
   // ---------- 顶部公共区 ----------
   const header = (
     <>
-      <div className="recent-strip">
-        <span className="recent-title">最近阅读</span>
-        {recent.length === 0 && <span className="recent-empty">暂无</span>}
-        {recent.map((b) => (
-          <button key={b.id} className="recent-chip" onClick={() => openRecent(b)} title={b.name}>
-            {b.name}（{sourceName(b.source)}）
+      <header className="shelf-header">
+        <div>
+          <h1 className="shelf-title">本地小说阅读器</h1>
+          <div className="shelf-sub">在线书库 · 任意设备联网即读 · 文件不上传，纯本地运行</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, position: 'relative', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button className="btn" onClick={() => setThemeOpen((o) => !o)}>
+            主题：{THEME_OPTIONS.find((t) => t.id === shelfTheme)?.name}
           </button>
-        ))}
+          <button className="btn primary" onClick={onImport}>
+            打开 TXT
+          </button>
+          {themeOpen && (
+            <div className="shelf-theme-popover">
+              {THEME_OPTIONS.map((t) => (
+                <button
+                  key={t.id}
+                  className={`theme-swatch-row${shelfTheme === t.id ? ' active' : ''}`}
+                  onClick={() => {
+                    onShelfThemeChange(t.id);
+                    setThemeOpen(false);
+                  }}
+                >
+                  <span className="swatch" style={{ background: THEME_SWATCHES[t.id] }} />
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div className="section-title">最近阅读</div>
+      {recent.length === 0 && <div className="hint-text">还没有阅读记录，打开任意书库的一本小说后会显示在这里（最多 3 本）。</div>}
+      <div className="recent-list">
+        {recent.map((b) => {
+          const p = progressMap[b.id];
+          const total = b.chapterCount;
+          const percent = p && total ? Math.round(((p.chapterIndex + 1) / total) * 100) : null;
+          return (
+            <div key={b.id} className="recent-card" onClick={() => openRecent(b)}>
+              <div className="book-name">{b.name}</div>
+              <div className="book-meta">
+                书库：{sourceName(b.source)} · 查看时间：{formatTime(b.lastOpenedAt)}
+              </div>
+              <div className="book-meta">
+                进度：
+                {p
+                  ? total
+                    ? `第 ${p.chapterIndex + 1}/${total} 章（约 ${percent}%）`
+                    : `第 ${p.chapterIndex + 1} 章`
+                  : total
+                    ? `尚未阅读 · 共 ${total} 章`
+                    : '尚未阅读'}
+              </div>
+              <div className="btn primary" style={{ alignSelf: 'flex-start' }}>
+                继续阅读
+              </div>
+            </div>
+          );
+        })}
       </div>
       <div className="library-tabs">
         <button className={`lib-tab${tab === 'online' ? ' active' : ''}`} onClick={() => setTabAndReset('online')}>
