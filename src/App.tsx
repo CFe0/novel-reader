@@ -10,7 +10,6 @@ import type {
   OnlineBook,
   OnlineChapterIndex,
   ReaderSettings,
-  ThemeName,
 } from './types';
 import { detectEncoding } from './lib/encoding';
 import { scanChapters } from './lib/chapters';
@@ -27,7 +26,7 @@ import {
   saveHandle,
   supportsFilePicker,
 } from './lib/fileOpen';
-import { loadSettings, loadShelfTheme, saveSettings, saveShelfTheme } from './lib/settings';
+import { loadSettings, saveSettings } from './lib/settings';
 
 type View =
   | { kind: 'shelf' }
@@ -40,7 +39,6 @@ export default function App() {
   const [lanAvailable, setLanAvailable] = useState(false);
   const [groups, setGroups] = useState<BookGroup[]>([]);
   const [settings, setSettings] = useState<ReaderSettings>(() => loadSettings());
-  const [shelfTheme, setShelfTheme] = useState<ThemeName>(() => loadShelfTheme());
   const [view, setView] = useState<View>({ kind: 'shelf' });
   const [busy, setBusy] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -49,8 +47,8 @@ export default function App() {
   const chapterCacheRef = useRef(new Map<string, Chapter[]>());
 
   useEffect(() => {
-    document.documentElement.dataset.theme = view.kind === 'shelf' ? shelfTheme : settings.theme;
-  }, [view.kind, shelfTheme, settings.theme]);
+    document.documentElement.dataset.theme = settings.theme;
+  }, [settings.theme]);
 
   useEffect(() => {
     let alive = true;
@@ -104,6 +102,33 @@ export default function App() {
         if (!alive) return;
         setLanBooks(data.books ?? []);
         setLanAvailable(true);
+        // 为局域网书籍建立书架记录（用于文件夹归属，保留已有分组）
+        const created: BookRecord[] = [];
+        for (const ob of data.books ?? []) {
+          const id = lanBookId(ob.fileName, ob.size);
+          const existing = await idbGet<BookRecord>('books', id);
+          if (!existing) {
+            const rec: BookRecord = {
+              id,
+              name: ob.title,
+              fileName: ob.fileName,
+              size: ob.size,
+              lastModified: 0,
+              lastOpenedAt: 0,
+              isFavorite: false,
+              encoding: null,
+              chapterCount: null,
+              source: 'lan',
+              url: `lan-books/${encodeURIComponent(ob.fileName)}`,
+              pinned: false,
+            };
+            created.push(rec);
+            await idbPut('books', rec);
+          }
+        }
+        if (created.length && alive) {
+          setBooks((prev) => [...created.filter((r) => !prev.some((b) => b.id === r.id)), ...prev]);
+        }
       } catch {
         if (alive) setLanAvailable(false);
       }
@@ -302,70 +327,6 @@ export default function App() {
     [view],
   );
 
-  const toggleFavorite = useCallback(async (book: BookRecord) => {
-    const updated = { ...book, isFavorite: !book.isFavorite };
-    await idbPut('books', updated);
-    setBooks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-  }, []);
-
-  const ensureBook = useCallback(
-    async (rec: BookRecord) => {
-      const exists = books.some((b) => b.id === rec.id);
-      await idbPut('books', rec);
-      setBooks((prev) =>
-        exists
-          ? prev.map((b) => (b.id === rec.id ? rec : b))
-          : [rec, ...prev].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt),
-      );
-    },
-    [books],
-  );
-
-  const addOnlineToShelf = useCallback(
-    async (ob: OnlineBook) => {
-      const id = onlineBookId(ob.fileName, ob.size);
-      if (books.some((b) => b.id === id)) return;
-      await ensureBook({
-        id,
-        name: ob.title,
-        fileName: ob.fileName,
-        size: ob.size,
-        lastModified: 0,
-        lastOpenedAt: 0,
-        isFavorite: false,
-        encoding: null,
-        chapterCount: null,
-        source: 'online',
-        url: `books/${encodeURIComponent(ob.fileName)}`,
-        chaptersUrl: `books/${encodeURIComponent(ob.title)}/chapters/`,
-        pinned: false,
-      });
-    },
-    [books, ensureBook],
-  );
-
-  const addLanToShelf = useCallback(
-    async (ob: OnlineBook) => {
-      const id = lanBookId(ob.fileName, ob.size);
-      if (books.some((b) => b.id === id)) return;
-      await ensureBook({
-        id,
-        name: ob.title,
-        fileName: ob.fileName,
-        size: ob.size,
-        lastModified: 0,
-        lastOpenedAt: 0,
-        isFavorite: false,
-        encoding: null,
-        chapterCount: null,
-        source: 'lan',
-        url: `lan-books/${encodeURIComponent(ob.fileName)}`,
-        pinned: false,
-      });
-    },
-    [books, ensureBook],
-  );
-
   const createGroup = useCallback(
     async (name: string) => {
       const trimmed = name.trim();
@@ -427,13 +388,11 @@ export default function App() {
     [groups],
   );
 
-  const removeFromShelf = useCallback(async (ids: string[]) => {
-    for (const id of ids) {
-      await idbDelete('books', id);
-      await idbDelete('progress', id);
-      await idbDelete('handles', id);
-    }
-    setBooks((prev) => prev.filter((b) => !ids.includes(b.id)));
+  const removeLocalBook = useCallback(async (book: BookRecord) => {
+    await idbDelete('books', book.id);
+    await idbDelete('progress', book.id);
+    await idbDelete('handles', book.id);
+    setBooks((prev) => prev.filter((b) => b.id !== book.id));
   }, []);
 
   const moveBooksToGroup = useCallback(
@@ -447,25 +406,9 @@ export default function App() {
     [books],
   );
 
-  const setBooksPinned = useCallback(
-    async (ids: string[], pinned: boolean) => {
-      const next = books.map((b) => (ids.includes(b.id) ? { ...b, pinned } : b));
-      for (const b of next) {
-        if (ids.includes(b.id)) await idbPut('books', b);
-      }
-      setBooks(next);
-    },
-    [books],
-  );
-
   const updateSettings = useCallback((next: ReaderSettings) => {
     setSettings(next);
     saveSettings(next);
-  }, []);
-
-  const updateShelfTheme = useCallback((theme: ThemeName) => {
-    setShelfTheme(theme);
-    saveShelfTheme(theme);
   }, []);
 
   const importMany = useCallback(
@@ -542,24 +485,18 @@ export default function App() {
           onlineBooks={onlineBooks}
           lanBooks={lanBooks}
           lanAvailable={lanAvailable}
-          shelfTheme={shelfTheme}
-          onShelfThemeChange={updateShelfTheme}
+          onOpenLocal={(b) => void reopenBook(b)}
+          onOpenOnline={(b) => void openOnlineBook(b)}
+          onOpenLan={(b) => void openLanBook(b)}
           onImport={() => void onImportClick()}
           onImportFolder={() => folderInputRef.current?.click()}
           onRefreshOnlineBooks={() => refreshOnlineBooks()}
-          onOpenBook={(b) => void reopenBook(b)}
-          onOpenOnline={(b) => void openOnlineBook(b)}
-          onOpenLan={(b) => void openLanBook(b)}
-          onAddOnline={(b) => addOnlineToShelf(b)}
-          onAddLan={(b) => addLanToShelf(b)}
-          onToggleFavorite={(b) => void toggleFavorite(b)}
+          onRemoveLocal={(b) => void removeLocalBook(b)}
           onCreateGroup={(name) => createGroup(name)}
           onRenameGroup={(id, name) => renameGroup(id, name)}
           onDeleteGroup={(id) => deleteGroup(id)}
           onMoveGroup={(id, dir) => moveGroup(id, dir)}
-          onRemoveFromShelf={(ids) => removeFromShelf(ids)}
           onMoveBooksToGroup={(ids, gid) => moveBooksToGroup(ids, gid)}
-          onSetPinned={(ids, pinned) => setBooksPinned(ids, pinned)}
         />
       ) : (
         <Reader
